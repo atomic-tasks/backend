@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, FastAPI
 from fastapi.routing import APIRoute
 
 from atomic_tasks.presentation.fastapi.auth import make_authenticate
+from atomic_tasks.presentation.fastapi.docs import add_docs
 from atomic_tasks.presentation.fastapi.errors import register_error_handlers
 from atomic_tasks.presentation.fastapi.routers import health, me, tokens
 
@@ -28,12 +29,10 @@ def create_fastapi_app(
         debug=debug,
         lifespan=lifespan,
         generate_unique_id_function=_operation_id,
-        swagger_ui_init_oauth={
-            "clientId": swagger_client_id,
-            "usePkceWithAuthorizationCodeGrant": True,
-            "scopes": "openid email profile",
-        },
+        docs_url=None,
+        redoc_url=None,
     )
+    add_docs(app, swagger_client_id=swagger_client_id)
     register_error_handlers(app)
     app.include_router(health.router)
 
