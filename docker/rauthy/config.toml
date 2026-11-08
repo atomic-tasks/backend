@@ -27,6 +27,11 @@ pg_tls = "disable"
 # Регистрация клиентов для коннектора Claude — включается отдельной спекой.
 enable = false
 
+[mfa]
+# ТОЛЬКО ДЛЯ РАЗРАБОТКИ: админка без обязательной MFA. В проде — значение по умолчанию (true)
+# и passkey у администратора (TOTP в Rauthy нет, OTP только по почте).
+admin_force_mfa = false
+
 [server]
 scheme = "http"
 port_http = 8080
