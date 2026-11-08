@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
+*.egg-info/
+
+# Tools
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.import_linter_cache/
+.coverage
+htmlcov/
+
+# Env
+.env
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Agents: личные настройки и черновики не коммитим
+CLAUDE.local.md
+AGENTS.local.md
+.claude/settings.local.json
+scratch/

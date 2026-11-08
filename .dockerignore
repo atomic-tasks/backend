@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+.env
+**/__pycache__
+.mypy_cache
+.ruff_cache
+.pytest_cache
+.import_linter_cache
+.claude
+docs
+tests
+scratch
+skills
+*.md
+!README.md

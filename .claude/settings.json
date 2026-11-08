@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv sync *)",
+      "Bash(uv run ruff *)",
+      "Bash(uv run mypy *)",
+      "Bash(uv run mypy)",
+      "Bash(uv run lint-imports)",
+      "Bash(uv run pytest *)",
+      "Bash(uv run pytest)",
+      "Bash(uv run alembic *)",
+      "Bash(docker compose *)"
+    ],
+    "ask": [
+      "Bash(git commit *)",
+      "Bash(git push *)"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git push --force-with-lease *)",
+      "Bash(git reset --hard *)",
+      "Read(./.env)"
+    ]
+  }
+}

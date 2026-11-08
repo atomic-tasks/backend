@@ -1,0 +1,100 @@
+[project]
+name = "atomic-tasks"
+version = "0.1.0"
+description = "AtomicTasks backend: task tree with REST API and MCP server for AI agents"
+readme = "README.md"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.14"
+dependencies = [
+    "alembic>=1.20",
+    "asyncpg>=0.32",
+    "dishka>=1.10",
+    "fastapi>=0.162",
+    "mcp>=2.3",
+    "pydantic-settings>=2.16",
+    "pyjwt[crypto]>=2.15",
+    "sqlalchemy[asyncio]>=2.1",
+    "uvicorn[standard]>=0.54",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28",
+    "import-linter>=2.16",
+    "mypy>=2.4",
+    "pytest>=9.2",
+    "pytest-asyncio>=1.4",
+    "ruff>=0.17",
+    "testcontainers[postgres]>=4.15",
+]
+
+[build-system]
+requires = ["uv_build>=0.13,<0.14"]
+build-backend = "uv_build"
+
+# --- ruff ---------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F", "I", "B", "UP", "SIM", "ASYNC", "RUF",
+    "N", "C4", "PT", "RET", "PL", "S",
+]
+# TC не включаем: dishka, FastAPI и pydantic читают аннотации в рантайме
+ignore = [
+    "PLR0913",                      # сервисам с DI нормально иметь много зависимостей
+    "RUF001", "RUF002", "RUF003",   # кириллица в строках и комментариях — норма
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "PLR2004"]
+"src/atomic_tasks/infrastructure/postgres/migrations/**" = ["N999"]
+
+# --- mypy ---------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+packages = ["atomic_tasks"]
+
+# --- pytest -------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+
+# --- import-linter: границы слоёв проверяются в CI ----------------------
+
+[tool.importlinter]
+root_package = "atomic_tasks"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Clean architecture layers"
+type = "layers"
+layers = [
+    "atomic_tasks.config",
+    "atomic_tasks.presentation | atomic_tasks.infrastructure",
+    "atomic_tasks.application",
+    "atomic_tasks.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "Domain is pure Python"
+type = "forbidden"
+source_modules = ["atomic_tasks.domain"]
+forbidden_modules = ["sqlalchemy", "pydantic", "fastapi", "mcp", "dishka", "asyncpg"]
+
+[tool.uv.build-backend]
+# Инструкции для агентов лежат рядом с кодом, но в пакет не попадают
+source-exclude = ["**/AGENTS.md", "**/CLAUDE.md"]
+wheel-exclude = ["**/AGENTS.md", "**/CLAUDE.md"]

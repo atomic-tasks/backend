@@ -1,0 +1,47 @@
+name: atomic-tasks
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES__USER:-atomic_tasks}
+      POSTGRES_PASSWORD: ${POSTGRES__PASSWORD:-atomic_tasks}
+      POSTGRES_DB: ${POSTGRES__DB:-atomic_tasks}
+    ports:
+      - "5432:5432"
+    volumes:
+      # в образе Postgres 18 данные лежат в /var/lib/postgresql/18/docker
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      POSTGRES__HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      POSTGRES__HOST: postgres
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:
