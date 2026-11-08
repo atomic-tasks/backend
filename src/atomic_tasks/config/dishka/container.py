@@ -1,6 +1,7 @@
 from dishka import AsyncContainer, Provider, make_async_container
 
 from atomic_tasks.config.dishka.providers import (
+    AuthProvider,
     PostgresProvider,
     ServicesProvider,
     SettingsProvider,
@@ -13,6 +14,7 @@ def create_container(settings: Settings, *overrides: Provider) -> AsyncContainer
         SettingsProvider(),
         PostgresProvider(),
         ServicesProvider(),
+        AuthProvider(),
         *overrides,
         context={Settings: settings},
     )

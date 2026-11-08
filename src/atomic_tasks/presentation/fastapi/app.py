@@ -4,9 +4,9 @@ from contextlib import AbstractAsyncContextManager
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.routing import APIRoute
 
-from atomic_tasks.presentation.fastapi.auth import authenticate
+from atomic_tasks.presentation.fastapi.auth import make_authenticate
 from atomic_tasks.presentation.fastapi.errors import register_error_handlers
-from atomic_tasks.presentation.fastapi.routers import health, me
+from atomic_tasks.presentation.fastapi.routers import health, me, tokens
 
 
 def _operation_id(route: APIRoute) -> str:
@@ -19,6 +19,8 @@ def create_fastapi_app(
     version: str,
     debug: bool,
     lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]],
+    oidc_issuer: str,
+    swagger_client_id: str,
 ) -> FastAPI:
     app = FastAPI(
         title="AtomicTasks API",
@@ -26,12 +28,18 @@ def create_fastapi_app(
         debug=debug,
         lifespan=lifespan,
         generate_unique_id_function=_operation_id,
+        swagger_ui_init_oauth={
+            "clientId": swagger_client_id,
+            "usePkceWithAuthorizationCodeGrant": True,
+            "scopes": "openid email profile",
+        },
     )
     register_error_handlers(app)
     app.include_router(health.router)
 
     # Всё под /api/v1 требует аутентификации — доступ по умолчанию закрыт.
-    api_v1 = APIRouter(prefix="/api/v1", dependencies=[Depends(authenticate)])
+    api_v1 = APIRouter(prefix="/api/v1", dependencies=[Depends(make_authenticate(oidc_issuer))])
     api_v1.include_router(me.router)
+    api_v1.include_router(tokens.router)
     app.include_router(api_v1)
     return app

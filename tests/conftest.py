@@ -59,3 +59,14 @@ def empty_db(settings: Settings) -> Settings:
 
     asyncio.run(truncate())
     return settings
+
+
+@pytest.fixture(scope="session")
+def settings_with_allowlist(settings: Settings) -> Settings:
+    return settings.model_copy(
+        update={
+            "auth": settings.auth.model_copy(
+                update={"allowed_emails": ["alice@example.com", "bob@example.com"]},
+            ),
+        },
+    )

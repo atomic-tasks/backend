@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from dishka import Provider
 from dishka.integrations.fastapi import setup_dishka
 from fastapi import FastAPI
 
@@ -14,10 +15,10 @@ from atomic_tasks.presentation.mcp.auth import McpAuthMiddleware
 from atomic_tasks.presentation.mcp.server import create_mcp_server, create_mcp_starlette_app
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, *overrides: Provider) -> FastAPI:
     settings = settings or Settings()
     map_entities()
-    container = create_container(settings)
+    container = create_container(settings, *overrides)
 
     mcp_server = create_mcp_server(version=settings.version)
     mcp_app = create_mcp_starlette_app(mcp_server, allowed_hosts=settings.mcp.allowed_hosts)
@@ -30,7 +31,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             await container.close()
 
-    app = create_fastapi_app(version=settings.version, debug=settings.debug, lifespan=lifespan)
+    app = create_fastapi_app(
+        version=settings.version,
+        debug=settings.debug,
+        lifespan=lifespan,
+        oidc_issuer=settings.auth.issuer,
+        swagger_client_id=settings.auth.swagger_client_id,
+    )
     setup_dishka(container, app)
     # MCP монтируется последним: сначала матчатся маршруты FastAPI, остальное (/mcp) уходит в MCP
     app.mount("/", McpAuthMiddleware(mcp_app, container, path="/mcp"))

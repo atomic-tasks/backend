@@ -23,8 +23,8 @@ from atomic_tasks.domain.exceptions import TokenLimitExceededError
 class TokenService:
     """Personal access tokens.
 
-    Выпуск, список и отзыв вызываются только из доверенных точек: CLI администратора, а позже —
-    из сессии IdP. REST-эндпоинтов выпуска по PAT нет: утёкший токен не выпустит себе новый.
+    Выпуск, список и отзыв доступны из CLI администратора и из сессии IdP (REST проверяет
+    Identity.require_session): утёкший PAT не выпустит себе новый.
     """
 
     def __init__(
