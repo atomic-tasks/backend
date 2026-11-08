@@ -25,8 +25,8 @@ class McpSettings(BaseModel):
 
 
 class AuthSettings(BaseModel):
-    # Issuer IdP — как он записан в токенах (claim iss). Для Rauthy: <pub_url>/auth/v1.
-    issuer: str = "http://localhost:8080/auth/v1"
+    # Issuer IdP ровно как в claim iss токена. У Rauthy — <pub_url>/auth/v1/ со слешем на конце.
+    issuer: str = "http://localhost:8080/auth/v1/"
     # Допустимые значения aud: client id наших приложений в IdP. Пусто — вход через IdP выключен.
     audience: list[str] = []
     # Адрес IdP изнутри Docker-сети (например http://rauthy:8080), если issuer оттуда недоступен.

@@ -114,6 +114,15 @@ async def test_symmetric_algorithm_is_rejected(idp: str) -> None:
         await _verifier(idp).verify(forged)
 
 
+async def test_issuer_is_compared_exactly_including_trailing_slash(idp: str) -> None:
+    rauthy_style = await _verifier(idp, issuer=f"{idp}/auth/v1/").verify(
+        _token(idp, iss=f"{idp}/auth/v1/"),
+    )
+    assert rauthy_style.issuer == f"{idp}/auth/v1/"
+    with pytest.raises(AuthenticationError):
+        await _verifier(idp).verify(_token(idp, iss=f"{idp}/auth/v1/"))
+
+
 async def test_no_audience_configured_means_idp_login_disabled(idp: str) -> None:
     with pytest.raises(AuthenticationError):
         await _verifier(idp, audience=[]).verify(_token(idp))

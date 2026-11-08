@@ -18,6 +18,7 @@ HTTP_TIMEOUT_SECONDS = 5
 
 @dataclass(frozen=True, kw_only=True)
 class OidcConfig:
+    # Сравнивается с claim iss посимвольно — включая слеш в конце (у Rauthy он есть).
     issuer: str
     audience: list[str]
     # Адрес IdP изнутри Docker-сети, если публичный (issuer) оттуда недоступен.
@@ -63,7 +64,7 @@ class OidcTokenVerifier:
             if self._jwks is None:
                 discovery = await asyncio.to_thread(
                     self._get_json,
-                    f"{self._config.issuer}/.well-known/openid-configuration",
+                    f"{self._config.issuer.rstrip('/')}/.well-known/openid-configuration",
                     None,
                 )
                 self._userinfo_url = discovery.get("userinfo_endpoint")

@@ -23,9 +23,10 @@ _bearer = HTTPBearer(
 
 def make_authenticate(issuer: str) -> Callable[..., Awaitable[Identity]]:
     """Зависимость аутентификации для всего /api/v1. Две схемы в Swagger: вход через IdP и PAT."""
+    base = issuer.rstrip("/")
     oauth = OAuth2AuthorizationCodeBearer(
-        authorizationUrl=f"{issuer}/oidc/authorize",
-        tokenUrl=f"{issuer}/oidc/token",
+        authorizationUrl=f"{base}/oidc/authorize",
+        tokenUrl=f"{base}/oidc/token",
         scopes={"openid": "OpenID", "email": "Email", "profile": "Профиль"},
         auto_error=False,
         description="Вход через IdP (Rauthy).",

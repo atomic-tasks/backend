@@ -92,7 +92,7 @@ class AuthProvider(Provider):
     def token_verifier(self, settings: AuthSettings) -> TokenVerifier:
         return OidcTokenVerifier(
             OidcConfig(
-                issuer=settings.issuer.rstrip("/"),
+                issuer=settings.issuer,
                 audience=settings.audience,
                 internal_url=settings.internal_url,
             ),
