@@ -1,6 +1,6 @@
 from collections.abc import AsyncIterator
 
-from dishka import Provider, Scope, provide
+from dishka import Provider, Scope, from_context, provide
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -8,15 +8,24 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from atomic_tasks.application.ports.api_tokens import ApiTokenRepository
+from atomic_tasks.application.ports.clock import Clock
+from atomic_tasks.application.ports.transaction import TransactionManager
+from atomic_tasks.application.ports.users import UserRepository
+from atomic_tasks.application.services.auth_service import AuthService
+from atomic_tasks.application.services.token_service import TokenService
+from atomic_tasks.application.services.user_service import UserService
 from atomic_tasks.config.settings import PostgresSettings, Settings
+from atomic_tasks.infrastructure.clock import SystemClock
+from atomic_tasks.infrastructure.postgres.repositories.api_tokens import SqlApiTokenRepository
+from atomic_tasks.infrastructure.postgres.repositories.transaction import SqlTransactionManager
+from atomic_tasks.infrastructure.postgres.repositories.users import SqlUserRepository
 
 
 class SettingsProvider(Provider):
     scope = Scope.APP
 
-    @provide
-    def settings(self) -> Settings:
-        return Settings()
+    settings = from_context(provides=Settings)
 
     @provide
     def postgres_settings(self, settings: Settings) -> PostgresSettings:
@@ -42,6 +51,19 @@ class PostgresProvider(Provider):
         async with session_factory() as session:
             yield session
 
+    users = provide(SqlUserRepository, scope=Scope.REQUEST, provides=UserRepository)
+    api_tokens = provide(SqlApiTokenRepository, scope=Scope.REQUEST, provides=ApiTokenRepository)
+    transaction = provide(
+        SqlTransactionManager,
+        scope=Scope.REQUEST,
+        provides=TransactionManager,
+    )
 
-# Сюда по мере реализации добавляются провайдеры репозиториев, ридеров, сервисов
-# и IdentityProvider (свой для FastAPI и для MCP).
+
+class ServicesProvider(Provider):
+    scope = Scope.REQUEST
+
+    clock = provide(SystemClock, scope=Scope.APP, provides=Clock)
+    user_service = provide(UserService)
+    token_service = provide(TokenService)
+    auth_service = provide(AuthService)
