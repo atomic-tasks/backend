@@ -1,6 +1,10 @@
 # Конфиг Rauthy для локальной разработки. Секреты сюда не пишутся — они приходят из .env через compose.
 # Справочник всех опций: https://sebadob.github.io/rauthy/config/config.html
 
+[access]
+# Локально по http cookie с флагом Secure не работают. В проде — https и значение по умолчанию.
+cookie_mode = "danger-insecure"
+
 [bootstrap]
 # Email первого администратора; пароль Rauthy печатает в логах при первом запуске.
 # Переопределяется BOOTSTRAP_ADMIN_EMAIL.
@@ -27,8 +31,6 @@ enable = false
 scheme = "http"
 port_http = 8080
 pub_url = "localhost:8080"
-# Локально по http cookie с флагом Secure не работают. В проде — https и значение по умолчанию.
-cookie_mode = "danger-insecure"
 swagger_ui_enable = false
 
 [user_registration]
