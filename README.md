@@ -26,6 +26,19 @@ uv run alembic upgrade head
 uv run python -m atomic_tasks
 ```
 
+## Токен и подключение Claude Code
+
+Пока вход через Rauthy не подключён, пользователи и токены создаются командой:
+
+```bash
+docker compose exec api python -m atomic_tasks users create --name "Имя" --email you@example.com
+docker compose exec api python -m atomic_tasks tokens create --user <id> --name "Claude Code"
+claude mcp add --transport http atomic-tasks http://localhost:8000/mcp \
+  --header "Authorization: Bearer at_..."
+```
+
+Токен показывается один раз. Список и отзыв: `tokens list --user <id>`, `tokens revoke --user <id> <token_id>`.
+
 ## Разработка
 
 ```bash
