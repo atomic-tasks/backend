@@ -28,12 +28,13 @@ uv run python -m atomic_tasks
 
 ## Токен и подключение Claude Code
 
-Пока вход через Rauthy не подключён, пользователи и токены создаются командой:
+Обычный путь: http://localhost:8000/docs → Authorize → вход через Rauthy (настройка — `docs/dev/rauthy.md`) →
+`POST /api/v1/tokens`. Без IdP пользователя и токен можно создать командой:
 
 ```bash
 docker compose exec api python -m atomic_tasks users create --name "Имя" --email you@example.com
 docker compose exec api python -m atomic_tasks tokens create --user <id> --name "Claude Code"
-claude mcp add --transport http atomic-tasks http://localhost:8000/mcp \
+claude mcp add -s user --transport http atomic-tasks http://localhost:8000/mcp \
   --header "Authorization: Bearer at_..."
 ```
 

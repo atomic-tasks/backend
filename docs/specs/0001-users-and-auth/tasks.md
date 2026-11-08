@@ -1,6 +1,6 @@
 # Задачи
 
-- [ ] **Rauthy в compose и проверка.** Сервис, база `rauthy`, ключи в `.env.example`, `docs/dev/rauthy.md`.
+- [x] **Rauthy в compose и проверка.** (Google — да; GitHub — проверить) Сервис, база `rauthy`, ключи в `.env.example`, `docs/dev/rauthy.md`.
   Готово: локально вход через Google и GitHub; JWT содержит `sub`, `email`, `email_verified`;
   динамическая регистрация клиента включается. Если что-то не работает — стоп, пересматриваем ADR 0009.
 - [x] **Домен.** `User`, `UserIdentity`, `ApiToken`, `TokenScope`, ошибки.
@@ -18,7 +18,7 @@
   Готово: `/mcp` с PAT отвечает, без токена — 401 с `WWW-Authenticate`.
 - [x] **e2e: изоляция и безопасность.** Пользователь A не видит и не отзывает токены B; PAT не создаёт PAT;
   `read`-токен не меняет данные; отключённый пользователь получает 403; отозванный токен — 401.
-- [ ] **Документация.** README (как получить токен и подключить Claude Code), `.env.example`, `docs/architecture.md`.
+- [x] **Документация.** README (как получить токен и подключить Claude Code), `.env.example`, `docs/architecture.md`.
   Готово: по README можно пройти путь от `docker compose up` до работающего MCP в Claude Code.
 
 - [x] **CLI для пользователей и токенов** (`python -m atomic_tasks users|tokens ...`) — способ выпустить токен,
