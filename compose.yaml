@@ -61,25 +61,7 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      rauthy:
-    image: ghcr.io/sebadob/rauthy:0.37.2
-    environment:
-      BOOTSTRAP_ADMIN_EMAIL: ${RAUTHY_ADMIN_EMAIL:-admin@localhost}
-      PG_PASSWORD: ${RAUTHY_DB_PASSWORD}
-      ENC_KEYS: ${RAUTHY_ENC_KEYS:?задайте RAUTHY_ENC_KEYS в .env}
-      ENC_KEY_ACTIVE: ${RAUTHY_ENC_KEY_ACTIVE:?задайте RAUTHY_ENC_KEY_ACTIVE в .env}
-      HQL_SECRET_RAFT: ${RAUTHY_HQL_SECRET_RAFT:?задайте RAUTHY_HQL_SECRET_RAFT в .env}
-      HQL_SECRET_API: ${RAUTHY_HQL_SECRET_API:?задайте RAUTHY_HQL_SECRET_API в .env}
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./docker/rauthy/config.toml:/app/config.toml:ro
-      - rauthy-data:/app/data
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  migrate:
+      migrate:
         condition: service_completed_successfully
 
 volumes:
