@@ -12,5 +12,3 @@ NAMING_CONVENTION = {
 
 metadata = MetaData(naming_convention=NAMING_CONVENTION)
 mapper_registry = registry(metadata=metadata)
-
-# Таблицы (users, folders, tasks, api_tokens) и imperative-маппинг доменных сущностей — здесь.
