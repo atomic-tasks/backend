@@ -58,6 +58,8 @@ services:
         required: false
     environment:
       POSTGRES__HOST: postgres
+      # issuer в токенах — http://localhost:8080/auth/v1, а из контейнера Rauthy доступен по имени сервиса
+      AUTH__INTERNAL_URL: http://rauthy:8080
     ports:
       - "8000:8000"
     depends_on:

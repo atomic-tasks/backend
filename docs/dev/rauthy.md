@@ -92,5 +92,20 @@ docker compose logs rauthy | grep -i -A2 password   # пароль админи�
 
       Нужны `registration_endpoint` и `S256` в `code_challenge_methods_supported`. Верните `enable = false`.
 
-Состав access-токена (`sub`, `email`, `email_verified`, `aud`) проверим на шаге со Swagger,
-когда появится клиент для `/docs`.
+## 6. Вход в Swagger через Rauthy
+
+1. Админка Rauthy → Clients → добавить клиента:
+   - Client ID: `atomic-tasks-swagger`, тип **public** (без секрета, confidential выключен);
+   - Redirect URI: `http://localhost:8000/docs/oauth2-redirect`;
+   - Allowed origin: `http://localhost:8000` — Swagger обменивает код на токен прямо из браузера;
+   - Flows: `authorization_code` (+ `refresh_token`), PKCE `S256`;
+   - Scopes: `openid email profile`.
+2. В `.env` — блок `AUTH__*` из `.env.example`, в `AUTH__ALLOWED_EMAILS` ваш email.
+3. `docker compose up -d --build api`, открыть http://localhost:8000/docs → **Authorize** → блок OAuth2 →
+   отметить scopes → войти через Google.
+4. `GET /api/v1/me` — при первом входе создаётся пользователь. Затем `POST /api/v1/tokens` — токен для Claude Code.
+
+Если `/me` отвечает 401 «Токен недействителен» — проверьте `aud` и `iss` токена (скопировать из Swagger, декодировать
+`python -c "import jwt,sys;print(jwt.decode(sys.argv[1],options={'verify_signature':False}))" <token>`):
+`aud` должен быть в `AUTH__AUDIENCE`, `iss` — равен `AUTH__ISSUER`. Если 403 «Регистрация закрыта» —
+email не в allowlist или не подтверждён.
