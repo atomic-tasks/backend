@@ -27,11 +27,6 @@ pg_tls = "disable"
 # Регистрация клиентов для коннектора Claude — включается отдельной спекой.
 enable = false
 
-[otp]
-# Одноразовые коды как второй фактор (в т.ч. для обязательной MFA админки).
-# Passkeys безопаснее; OTP включён по выбору — см. docs/dev/rauthy.md.
-enable = true
-
 [server]
 scheme = "http"
 port_http = 8080
