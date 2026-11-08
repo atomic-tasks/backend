@@ -1,7 +1,8 @@
 # Задачи
 
-- [ ] **Zitadel в compose.** Сервис, база `zitadel`, masterkey в `.env.example`, `docs/dev/zitadel.md`.
-  Готово: локально вход в консоль Zitadel через Google и GitHub.
+- [ ] **Rauthy в compose и проверка.** Сервис, база `rauthy`, ключи в `.env.example`, `docs/dev/rauthy.md`.
+  Готово: локально вход через Google и GitHub; JWT содержит `sub`, `email`, `email_verified`;
+  динамическая регистрация клиента включается. Если что-то не работает — стоп, пересматриваем ADR 0009.
 - [ ] **Домен.** `User`, `UserIdentity`, `ApiToken`, `TokenScope`, ошибки.
   Готово: unit-тесты на срок, отзыв, права токена и отключённого пользователя.
 - [ ] **Таблицы и миграция.** Готово: `alembic upgrade head` и `downgrade base` на чистой базе проходят.

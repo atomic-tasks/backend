@@ -21,7 +21,8 @@
   `api_tokens.py`. `postgres/mapping.py` — все `map_imperatively` в одном месте, вызываются один раз при старте.
 - `postgres/repositories/` — `users.py`, `api_tokens.py`, `transaction.py`.
 - `postgres/migrations/versions/` — первая миграция.
-- `auth/jwt.py` — `JwtVerifier`: OIDC discovery, `PyJWKClient` с кэшем, проверка `iss`/`aud`/`exp`.
+- `auth/jwt.py` — `JwtVerifier`: OIDC discovery, `PyJWKClient` с кэшем, проверка `iss`/`aud`/`exp`,
+  алгоритмы EdDSA и RS256.
 
 **presentation**
 - `fastapi/auth.py` — зависимость: `Authorization: Bearer` → `at_...` в `TokenService`, иначе в `JwtVerifier`
@@ -36,9 +37,8 @@
 - `dishka/providers.py` — провайдеры репозиториев, сервисов, `JwtVerifier`, `IdentityProvider` для каждого входа.
 
 **Окружение**
-- `compose.yaml` — сервис `zitadel` (порт 8080), база `zitadel` в нашем Postgres (init-скрипт),
-  masterkey из `.env`.
-- `docs/dev/zitadel.md` — как локально создать проект, клиент для Swagger, подключить Google и GitHub.
+- `compose.yaml` — сервис `rauthy`, база `rauthy` в нашем Postgres (init-скрипт), ключи шифрования из `.env`.
+- `docs/dev/rauthy.md` — как локально создать клиента для Swagger, подключить Google и GitHub.
 
 ## Модель данных и миграции
 
@@ -98,6 +98,7 @@ Swagger: `swagger_ui_init_oauth={"clientId": ..., "usePkceWithAuthorizationCodeG
 
 ## Риски
 
-- Настройка Zitadel локально — много ручных шагов. Снижаем подробной инструкцией в `docs/dev/zitadel.md`.
+- Rauthy — проект с небольшим сообществом. Первым шагом проверяем всё, что нам от него нужно (ADR 0009).
+- Настройка IdP локально — ручные шаги. Снижаем подробной инструкцией в `docs/dev/rauthy.md`.
 - Недоступность JWKS — запросы с JWT падают. Кэш ключей и понятная 503 вместо 500.
 - Обновление `last_used_at` на каждый запрос — лишняя запись. Троттлинг раз в минуту.

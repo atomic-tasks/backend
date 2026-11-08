@@ -58,12 +58,12 @@
 
 ## Авторизация
 
-IdP — Zitadel в том же compose (ADR 0008). Бэкенд только проверяет токены.
+IdP — Rauthy в том же compose (ADR 0009). Бэкенд только проверяет токены.
 
-- **JWT от Zitadel** — web, mobile, Swagger `/docs`. Пользователь — по `(issuer, sub)`, создаётся при первом входе
+- **JWT от Rauthy** — web, mobile, Swagger `/docs`. Пользователь — по `(issuer, sub)`, создаётся при первом входе
   (если email в allowlist).
 - **Personal access tokens** `at_...` — Claude Code (HTTP MCP с `Authorization: Bearer`), бот, скрипты.
-- **OAuth для коннектора в приложении Claude** — позже: DCR в Zitadel + protected resource metadata на `/mcp`.
+- **OAuth для коннектора в приложении Claude** — отдельной спекой: DCR в Rauthy + protected resource metadata на `/mcp`.
 
 Спека: `docs/specs/0001-users-and-auth/`.
 
