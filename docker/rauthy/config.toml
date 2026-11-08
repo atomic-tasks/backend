@@ -1,0 +1,48 @@
+# Конфиг Rauthy для локальной разработки. Секреты сюда не пишутся — они приходят из .env через compose.
+# Справочник всех опций: https://sebadob.github.io/rauthy/config/config.html
+
+[access]
+# Локально по http cookie с флагом Secure не работают. В проде — https и значение по умолчанию.
+cookie_mode = "danger-insecure"
+
+[bootstrap]
+# Email первого администратора; пароль Rauthy печатает в логах при первом запуске.
+# Переопределяется BOOTSTRAP_ADMIN_EMAIL.
+admin_email = "admin@localhost"
+
+[cluster]
+# Одиночный узел. Секреты HQL_SECRET_RAFT и HQL_SECRET_API — из .env.
+node_id = 1
+nodes = ["1 localhost:8100 localhost:8200"]
+
+[database]
+# Наш Postgres вместо встроенного Hiqlite: один бэкап на всё. PG_PASSWORD — из .env.
+hiqlite = false
+pg_host = "postgres"
+pg_user = "rauthy"
+pg_db_name = "rauthy"
+pg_tls = "disable"
+
+[dynamic_clients]
+# Регистрация клиентов для коннектора Claude — включается отдельной спекой.
+enable = false
+
+[mfa]
+# ТОЛЬКО ДЛЯ РАЗРАБОТКИ: админка без обязательной MFA. В проде — значение по умолчанию (true)
+# и passkey у администратора (TOTP в Rauthy нет, OTP только по почте).
+admin_force_mfa = false
+
+[server]
+scheme = "http"
+port_http = 8080
+pub_url = "localhost:8080"
+swagger_ui_enable = false
+
+[user_registration]
+# Пользователи появляются только через вход по Google или GitHub.
+enable = false
+
+[webauthn]
+rp_id = "localhost"
+rp_origin = "http://localhost:8080"
+rp_name = "AtomicTasks"

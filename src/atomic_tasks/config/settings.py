@@ -24,6 +24,19 @@ class McpSettings(BaseModel):
     allowed_hosts: list[str] = ["localhost:*", "127.0.0.1:*"]
 
 
+class AuthSettings(BaseModel):
+    # Issuer IdP ровно как в claim iss токена. У Rauthy — <pub_url>/auth/v1/ со слешем на конце.
+    issuer: str = "http://localhost:8080/auth/v1/"
+    # Допустимые значения aud: client id наших приложений в IdP. Пусто — вход через IdP выключен.
+    audience: list[str] = []
+    # Адрес IdP изнутри Docker-сети (например http://rauthy:8080), если issuer оттуда недоступен.
+    internal_url: str | None = None
+    # Кого пускать при первом входе через IdP. Пусто — регистрация закрыта.
+    allowed_emails: list[str] = []
+    # Клиент IdP для входа в Swagger /docs (public, PKCE).
+    swagger_client_id: str = ""
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -34,6 +47,7 @@ class Settings(BaseSettings):
     debug: bool = False
     postgres: PostgresSettings = PostgresSettings()
     mcp: McpSettings = McpSettings()
+    auth: AuthSettings = AuthSettings()
 
     @cached_property
     def version(self) -> str:
