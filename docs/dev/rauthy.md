@@ -53,7 +53,8 @@ docker compose logs rauthy | grep -i -A2 password   # пароль админи�
    - Homepage URL: `http://localhost:8080`
    - Authorization callback URL: `http://localhost:8080/auth/v1/providers/callback`
 2. Скопируйте Client ID, сгенерируйте Client secret.
-3. Админка Rauthy → Providers → добавить → тип `GitHub`, вставить Client ID и secret, сохранить.
+3. Админка Rauthy → Providers → добавить → тип `GitHub`, вставить Client ID и secret, включить
+   **auto-onboarding**, сохранить.
 
 ## 4. Google
 
@@ -61,7 +62,9 @@ docker compose logs rauthy | grep -i -A2 password   # пароль админи�
    OAuth consent screen (External, тестовый режим, добавить свой email в Test users).
 2. Credentials → Create credentials → OAuth client ID → Web application.
    - Authorized redirect URI: `http://localhost:8080/auth/v1/providers/callback`
-3. Админка Rauthy → Providers → добавить → тип `Google`, если есть шаблон, иначе `OIDC`:
+3. Админка Rauthy → Providers → добавить → тип `Google`, если есть шаблон, иначе `OIDC`.
+   Включите у провайдера **auto-onboarding** — иначе при первом входе будет «User not found».
+   Auto-link не включайте.
    - Issuer: `https://accounts.google.com` (адреса подтянутся через discovery)
    - Scope: `openid email profile`
    - Client ID и secret из Google.
@@ -70,14 +73,15 @@ docker compose logs rauthy | grep -i -A2 password   # пароль админи�
 
 Результаты — в «Открытые вопросы» спеки 0001. Если пункт не работает — останавливаемся и пересматриваем ADR 0009.
 
-- [ ] **Вход через Google.** http://localhost:8080/auth/v1/account → войти через Google. Пользователь появился
+- [x] **Вход через Google.** http://localhost:8080/auth/v1/account → войти через Google. Пользователь появился
       в админке (Users) с вашим email.
 - [ ] **Вход через GitHub**, в том числе с приватным email в GitHub. Какой email получил пользователь,
       отмечен ли он подтверждённым.
 - [ ] **Создание пользователя при первом входе** при выключенной открытой регистрации
       (`[user_registration] enable = false`). Если Rauthy отказывает — попробуйте `enable = true` и запишите,
       что получилось: доступ к нашим данным всё равно ограничит allowlist в бэкенде.
-- [ ] **Привязка второго провайдера** к тому же аккаунту (Google + GitHub = один пользователь) из личного кабинета.
+- [x] **Привязка второго провайдера** — не поддерживается: один аккаунт Rauthy = один провайдер (ADR 0009).
+  Админ Rauthy — отдельный служебный аккаунт (`admin@localhost`), не ваш рабочий email.
 - [ ] **Discovery и регистрация клиентов.** Временно поставьте `[dynamic_clients] enable = true`
       в `docker/rauthy/config.toml`, `docker compose restart rauthy`, затем:
 
