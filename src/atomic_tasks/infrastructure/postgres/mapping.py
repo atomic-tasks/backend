@@ -3,10 +3,14 @@ from functools import cache
 from sqlalchemy.orm import relationship
 
 from atomic_tasks.domain.entities.api_token import ApiToken
+from atomic_tasks.domain.entities.folder import Folder
+from atomic_tasks.domain.entities.task import Task
 from atomic_tasks.domain.entities.user import User, UserIdentity
 from atomic_tasks.infrastructure.postgres.tables import (
     api_tokens,
+    folders,
     mapper_registry,
+    tasks,
     user_identities,
     users,
 )
@@ -15,7 +19,7 @@ from atomic_tasks.infrastructure.postgres.tables import (
 def _depends_on(target: type) -> object:
     """Связь только для порядка INSERT в unit of work, не для чтения.
 
-    Без relationship SQLAlchemy не знает, что пользователь вставляется раньше его токенов,
+    Без relationship SQLAlchemy не знает, что пользователь вставляется раньше его корня,
     и порядок INSERT в одном flush случайный. lazy="raise" — чтобы никто не начал
     ходить по связи и не получил скрытых запросов. Домен об этих атрибутах не знает.
     """
@@ -35,4 +39,10 @@ def map_entities() -> None:
         ApiToken,
         api_tokens,
         properties={"_user": _depends_on(User)},
+    )
+    mapper_registry.map_imperatively(Folder, folders, properties={"_owner": _depends_on(User)})
+    mapper_registry.map_imperatively(
+        Task,
+        tasks,
+        properties={"_owner": _depends_on(User), "_folder": _depends_on(Folder)},
     )
