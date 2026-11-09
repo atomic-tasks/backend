@@ -42,10 +42,10 @@
 
 ## Модель данных
 
-- `users`
-- `folders(id, owner_id, parent_id, title, description, weight, status, created_at, updated_at)`
-- `tasks(id, owner_id, folder_id, title, description, weight, status, created_at, updated_at)`
-- `api_tokens(id, owner_id, token_hash, name, scopes, created_at, last_used_at, revoked_at)`
+- `users`, `user_identities(user_id, issuer, subject)`, `api_tokens(user_id, prefix, token_hash, scope, ...)` —
+  реализованы в спеке 0001
+- `folders(id, owner_id, parent_id, title, description, weight, status, created_at, updated_at)` — спека 0002
+- `tasks(id, owner_id, folder_id, title, description, weight, status, created_at, updated_at)` — спека 0002
 
 Статусы папок: `active`, `paused`, `done`, `cancelled`.
 Статусы задач: `todo`, `in_progress`, `paused`, `done`, `cancelled`.
