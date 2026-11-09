@@ -26,3 +26,56 @@ class InvalidTokenParamsError(DomainError):
 class InsufficientScopeError(DomainError):
     def __init__(self, required: str) -> None:
         super().__init__(f"Токену не хватает прав: нужен scope '{required}'.")
+
+
+# Тексты ошибок ниже видит агент. Названия папок и задач в них не подставляем:
+# это данные пользователя, а не инструкции.
+
+
+class InvalidFieldError(DomainError):
+    pass
+
+
+class RootFolderProtectedError(DomainError):
+    def __init__(self) -> None:
+        super().__init__(
+            "Корневую папку нельзя удалить, перенести, переименовать или сменить ей вес и статус.",
+        )
+
+
+class FolderCycleError(DomainError):
+    def __init__(self) -> None:
+        super().__init__("Нельзя перенести папку в саму себя или в свою вложенную папку.")
+
+
+class FolderNotActiveError(DomainError):
+    def __init__(self, status: str) -> None:
+        super().__init__(
+            f"Папка в статусе '{status}': создавать и переносить в неё можно, "
+            "только когда она 'active'.",
+        )
+
+
+class FolderHasOpenItemsError(DomainError):
+    def __init__(self, folders: int, tasks: int) -> None:
+        super().__init__(
+            f"Нельзя отметить папку выполненной: внутри открыто папок — {folders}, "
+            f"задач — {tasks}. Завершите или отмените их, либо поставьте папке "
+            "'paused' или 'cancelled'.",
+        )
+
+
+class FolderNotEmptyError(DomainError):
+    def __init__(self, folders: int, tasks: int) -> None:
+        super().__init__(
+            f"Папка не пуста: подпапок — {folders}, задач — {tasks}. "
+            "Чтобы удалить её вместе с содержимым, передайте recursive=true.",
+        )
+
+
+class DoneAncestorError(DomainError):
+    def __init__(self) -> None:
+        super().__init__(
+            "Нельзя открыть: папка выше по дереву выполнена (done). "
+            "Сначала откройте её или перенесите элемент в активную папку.",
+        )

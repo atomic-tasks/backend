@@ -2,11 +2,13 @@ import uuid
 
 from atomic_tasks.application.errors import PermissionDeniedError
 from atomic_tasks.application.ports.clock import Clock
+from atomic_tasks.application.ports.folders import FolderRepository
 from atomic_tasks.application.ports.identities import UserIdentityRepository
 from atomic_tasks.application.ports.oidc import VerifiedClaims
 from atomic_tasks.application.ports.transaction import TransactionManager
 from atomic_tasks.application.ports.users import UserRepository
 from atomic_tasks.application.registration import RegistrationPolicy
+from atomic_tasks.domain.entities.folder import Folder
 from atomic_tasks.domain.entities.user import User, UserIdentity
 
 LAST_LOGIN_RESOLUTION_SECONDS = 3600
@@ -15,16 +17,18 @@ LAST_LOGIN_RESOLUTION_SECONDS = 3600
 class IdentityService:
     """Пользователь по входу через IdP; при первом входе создаётся, если пускает allowlist."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0917 — зависимости внедряет dishka
         self,
         users: UserRepository,
         identities: UserIdentityRepository,
+        folders: FolderRepository,
         tx: TransactionManager,
         clock: Clock,
         policy: RegistrationPolicy,
     ) -> None:
         self._users = users
         self._identities = identities
+        self._folders = folders
         self._tx = tx
         self._clock = clock
         self._policy = policy
@@ -57,6 +61,8 @@ class IdentityService:
             updated_at=now,
         )
         self._users.add(user)
+        # Корень в той же транзакции: пользователя без корня не бывает
+        self._folders.add(Folder.new_root(id=uuid.uuid7(), owner_id=user.id, now=now))
         self._identities.add(
             UserIdentity(
                 id=uuid.uuid7(),

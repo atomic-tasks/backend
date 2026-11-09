@@ -1,8 +1,11 @@
+from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import DateTime, Dialect, MetaData, String, TypeDecorator
+from sqlalchemy import DateTime, Dialect, MetaData, Numeric, String, TypeDecorator
 from sqlalchemy.orm import registry
+
+from atomic_tasks.domain.values import Weight
 
 # Единые имена constraint'ов, чтобы alembic autogenerate давал стабильные миграции.
 NAMING_CONVENTION = {
@@ -35,3 +38,18 @@ class StrEnumType[E: StrEnum](TypeDecorator[E]):
 
     def process_result_value(self, value: Any, dialect: Dialect) -> E | None:
         return None if value is None else self._enum(value)
+
+
+class WeightType(TypeDecorator[Weight]):
+    """Weight ↔ numeric(3,2). Decimal, а не float: 1.10 остаётся 1.10."""
+
+    impl = Numeric(3, 2, asdecimal=True)
+    cache_ok = True
+
+    def process_bind_param(self, value: Any, dialect: Dialect) -> Decimal | None:
+        """Weight → Decimal для записи."""
+        return None if value is None else value.value
+
+    def process_result_value(self, value: Any, dialect: Dialect) -> Weight | None:
+        """Decimal из базы → Weight (с той же валидацией, что и в домене)."""
+        return None if value is None else Weight(Decimal(value))
