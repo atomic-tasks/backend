@@ -8,22 +8,30 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from atomic_tasks.application.ports.access import AccessPolicy
 from atomic_tasks.application.ports.api_tokens import ApiTokenRepository
 from atomic_tasks.application.ports.clock import Clock
+from atomic_tasks.application.ports.folders import FolderRepository
 from atomic_tasks.application.ports.identities import UserIdentityRepository
 from atomic_tasks.application.ports.oidc import TokenVerifier
+from atomic_tasks.application.ports.tasks import TaskRepository
 from atomic_tasks.application.ports.transaction import TransactionManager
 from atomic_tasks.application.ports.users import UserRepository
 from atomic_tasks.application.registration import RegistrationPolicy
 from atomic_tasks.application.services.auth_service import AuthService
+from atomic_tasks.application.services.folder_service import FolderService
 from atomic_tasks.application.services.identity_service import IdentityService
+from atomic_tasks.application.services.task_service import TaskService
 from atomic_tasks.application.services.token_service import TokenService
 from atomic_tasks.application.services.user_service import UserService
 from atomic_tasks.config.settings import AuthSettings, PostgresSettings, Settings
+from atomic_tasks.infrastructure.auth.access_policy import OwnerAccessPolicy
 from atomic_tasks.infrastructure.auth.oidc import OidcConfig, OidcTokenVerifier
 from atomic_tasks.infrastructure.clock import SystemClock
 from atomic_tasks.infrastructure.postgres.repositories.api_tokens import SqlApiTokenRepository
+from atomic_tasks.infrastructure.postgres.repositories.folders import SqlFolderRepository
 from atomic_tasks.infrastructure.postgres.repositories.identities import SqlUserIdentityRepository
+from atomic_tasks.infrastructure.postgres.repositories.tasks import SqlTaskRepository
 from atomic_tasks.infrastructure.postgres.repositories.transaction import SqlTransactionManager
 from atomic_tasks.infrastructure.postgres.repositories.users import SqlUserRepository
 
@@ -63,6 +71,8 @@ class PostgresProvider(Provider):
 
     users = provide(SqlUserRepository, scope=Scope.REQUEST, provides=UserRepository)
     api_tokens = provide(SqlApiTokenRepository, scope=Scope.REQUEST, provides=ApiTokenRepository)
+    folders = provide(SqlFolderRepository, scope=Scope.REQUEST, provides=FolderRepository)
+    tasks = provide(SqlTaskRepository, scope=Scope.REQUEST, provides=TaskRepository)
     identities = provide(
         SqlUserIdentityRepository,
         scope=Scope.REQUEST,
@@ -83,6 +93,9 @@ class ServicesProvider(Provider):
     identity_service = provide(IdentityService)
     token_service = provide(TokenService)
     auth_service = provide(AuthService)
+    access_policy = provide(OwnerAccessPolicy, scope=Scope.APP, provides=AccessPolicy)
+    folder_service = provide(FolderService)
+    task_service = provide(TaskService)
 
 
 class AuthProvider(Provider):

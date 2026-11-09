@@ -1,10 +1,13 @@
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
 
 from atomic_tasks.application.errors import PermissionDeniedError
 from atomic_tasks.domain.entities.api_token import TokenScope
+from atomic_tasks.domain.entities.folder import FolderStatus
+from atomic_tasks.domain.entities.task import TaskStatus
 from atomic_tasks.domain.exceptions import InsufficientScopeError
 
 
@@ -58,3 +61,27 @@ class UserInfo:
     email: str | None
     created_at: datetime
     disabled: bool
+
+
+@dataclass(frozen=True, kw_only=True)
+class FolderInfo:
+    id: UUID
+    parent_id: UUID | None  # None — корень
+    title: str
+    description: str | None
+    weight: Decimal
+    status: FolderStatus
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, kw_only=True)
+class TaskInfo:
+    id: UUID
+    folder_id: UUID
+    title: str
+    description: str | None
+    weight: Decimal
+    status: TaskStatus
+    created_at: datetime
+    updated_at: datetime

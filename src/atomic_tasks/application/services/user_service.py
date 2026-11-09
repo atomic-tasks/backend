@@ -4,14 +4,23 @@ from uuid import UUID
 from atomic_tasks.application.dto import UserInfo
 from atomic_tasks.application.errors import NotFoundError
 from atomic_tasks.application.ports.clock import Clock
+from atomic_tasks.application.ports.folders import FolderRepository
 from atomic_tasks.application.ports.transaction import TransactionManager
 from atomic_tasks.application.ports.users import UserRepository
+from atomic_tasks.domain.entities.folder import Folder
 from atomic_tasks.domain.entities.user import User
 
 
 class UserService:
-    def __init__(self, users: UserRepository, tx: TransactionManager, clock: Clock) -> None:
+    def __init__(
+        self,
+        users: UserRepository,
+        folders: FolderRepository,
+        tx: TransactionManager,
+        clock: Clock,
+    ) -> None:
         self._users = users
+        self._folders = folders
         self._tx = tx
         self._clock = clock
 
@@ -26,6 +35,8 @@ class UserService:
             updated_at=now,
         )
         self._users.add(user)
+        # Корень в той же транзакции: пользователя без корня не бывает
+        self._folders.add(Folder.new_root(id=uuid.uuid7(), owner_id=user.id, now=now))
         await self._tx.commit()
         return _to_info(user)
 
