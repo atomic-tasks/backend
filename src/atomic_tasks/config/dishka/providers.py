@@ -20,6 +20,7 @@ from atomic_tasks.application.ports.tree import FolderTreeReader
 from atomic_tasks.application.ports.users import UserRepository
 from atomic_tasks.application.registration import RegistrationPolicy
 from atomic_tasks.application.services.auth_service import AuthService
+from atomic_tasks.application.services.bulk_service import BulkService
 from atomic_tasks.application.services.folder_service import FolderService
 from atomic_tasks.application.services.identity_service import IdentityService
 from atomic_tasks.application.services.task_service import TaskService
@@ -101,6 +102,7 @@ class ServicesProvider(Provider):
     folder_service = provide(FolderService)
     task_service = provide(TaskService)
     tree_service = provide(TreeService)
+    bulk_service = provide(BulkService)
 
 
 class AuthProvider(Provider):

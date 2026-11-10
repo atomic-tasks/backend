@@ -20,7 +20,7 @@ def create_app(settings: Settings | None = None, *overrides: Provider) -> FastAP
     map_entities()
     container = create_container(settings, *overrides)
 
-    mcp_server = create_mcp_server(version=settings.version)
+    mcp_server = create_mcp_server(version=settings.version, container=container)
     mcp_app = create_mcp_starlette_app(mcp_server, allowed_hosts=settings.mcp.allowed_hosts)
 
     @asynccontextmanager

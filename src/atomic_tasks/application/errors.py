@@ -1,3 +1,6 @@
+from atomic_tasks.domain.exceptions import DomainError
+
+
 class ApplicationError(Exception):
     def __init__(self, message: str) -> None:
         super().__init__(message)
@@ -23,4 +26,16 @@ class NotFoundError(ApplicationError):
 
 
 class InvalidQueryError(ApplicationError):
-    """Неверные параметры чтения (limit, пустой набор статусов) → 400."""
+    """Неверные параметры запроса (limit, пустой набор статусов, слишком большая пачка) → 400."""
+
+
+class BulkItemError(ApplicationError):
+    """Ошибка одного элемента пачки: адрес элемента + текст исходной ошибки.
+
+    Пачка атомарна, поэтому агенту важно знать, какой элемент исправить, чтобы повторить её целиком.
+    """
+
+    def __init__(self, address: str, cause: ApplicationError | DomainError) -> None:
+        super().__init__(f"{address}: {cause.message}")
+        self.address = address
+        self.cause = cause

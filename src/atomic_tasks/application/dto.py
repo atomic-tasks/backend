@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -136,3 +136,38 @@ class NestedTask:
     path: list[
         FolderCrumb
     ]  # от подпапки выбранной папки до папки задачи; пусто — задача прямо в ней
+
+
+# Пачки (spec 0004): вход BulkService.
+
+
+@dataclass(frozen=True, kw_only=True)
+class NewTask:
+    title: str
+    description: str | None = None
+    weight: Decimal | None = None  # None — вес по умолчанию
+
+
+@dataclass(frozen=True, kw_only=True)
+class NewFolder:
+    title: str
+    description: str | None = None
+    weight: Decimal | None = None
+    folders: list[NewFolder] = field(default_factory=list)
+    tasks: list[NewTask] = field(default_factory=list)
+
+
+@dataclass(frozen=True, kw_only=True)
+class FolderStatusChange:
+    folder_id: UUID
+    status: FolderStatus
+
+
+@dataclass(frozen=True, kw_only=True)
+class TaskStatusChange:
+    task_id: UUID
+    status: TaskStatus
+
+
+type StatusChange = FolderStatusChange | TaskStatusChange
+type NodeInfo = FolderInfo | TaskInfo
