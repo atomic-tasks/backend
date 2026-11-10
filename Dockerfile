@@ -17,6 +17,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 COPY pyproject.toml uv.lock README.md LICENSE alembic.ini ./
 COPY src ./src
+# Версия из git-тега (ADR 0010). Объявлена после слоя зависимостей, чтобы не сбивать его кэш.
+ARG VERSION=0.0.0
+RUN uv version --frozen "$VERSION"
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable
 

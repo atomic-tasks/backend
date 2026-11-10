@@ -69,7 +69,23 @@ uv run ruff format && uv run ruff check
 uv run mypy
 uv run lint-imports
 uv run pytest
+uv run python -m atomic_tasks openapi --output openapi.json   # после изменений API
 ```
+
+`openapi.json` — контракт для клиентов, генерируется из кода и коммитится вместе с изменением API.
+CI проверяет, что он не устарел, и в PR предупреждает о ломающих изменениях (oasdiff).
+
+## Релизы
+
+Версия берётся из git-тега (ADR 0010), в `pyproject.toml` — заглушка `0.0.0`. Чтобы выпустить релиз,
+поставь тег на коммит из `main`:
+
+```bash
+git tag v0.1.0 origin/main && git push origin v0.1.0
+```
+
+Workflow `release.yml` опубликует образ `ghcr.io/atomic-tasks/backend` (`0.1.0`, `0.1`, `latest`)
+и создаст GitHub Release с `openapi.json` этой версии.
 
 Документация: [`docs/`](docs/). Правила для AI-агентов: [`AGENTS.md`](AGENTS.md).
 

@@ -1,0 +1,87 @@
+# Релиз по тегу vX.Y.Z (спека 0005): образ в ghcr и GitHub Release с openapi.json этой версии.
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # GitHub Release
+      packages: write   # ghcr.io
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check tag
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Тег $TAG не вида vX.Y.Z"
+            exit 1
+          fi
+          # Релизим только то, что прошло ревью и CI: коммит тега должен быть в main.
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Коммит тега $TAG не входит в main"
+            exit 1
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          flavor: latest=true
+
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          build-args: VERSION=${{ steps.version.outputs.version }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Схема из опубликованного образа — ровно та, что отдаёт сервер этой версии.
+      - name: Export openapi.json
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker run --rm "$IMAGE:$VERSION" python -m atomic_tasks openapi > release-openapi.json
+          test "$(jq -r .info.version release-openapi.json)" = "$VERSION"
+          # Закоммиченная схема отличается только версией, иначе её забыли обновить.
+          diff <(jq -S 'del(.info.version)' openapi.json) \
+               <(jq -S 'del(.info.version)' release-openapi.json)
+          mv release-openapi.json openapi.json
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" openapi.json --verify-tag --generate-notes --title "$TAG"

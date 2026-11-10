@@ -1,6 +1,7 @@
 [project]
 name = "atomic-tasks"
-version = "0.1.0"
+# Заглушка: настоящая версия — из git-тега, подставляется при сборке образа (ADR 0010)
+version = "0.0.0"
 description = "AtomicTasks backend: task tree with REST API and MCP server for AI agents"
 readme = "README.md"
 license = "AGPL-3.0-only"
