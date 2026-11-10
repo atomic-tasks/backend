@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# Проверкам запись не нужна; джоба, которой нужна, просит её явно (guides/github-settings.md)
+permissions:
+  contents: read
+
 jobs:
   checks:
     runs-on: ubuntu-latest
