@@ -114,3 +114,14 @@ IdP — Rauthy в том же compose (ADR 0009). Бэкенд только пр
 
 Отдельные репозитории в организации `atomic-tasks`: `web`, `mobile` (Flutter), `telegram-bot`.
 Источник правды — `openapi.json` бэкенда (стабильные `operation_id`), клиенты генерируют SDK у себя.
+
+## Релизы
+
+- `openapi.json` в корне — `python -m atomic_tasks openapi` (`config/openapi.py`): та же схема, что на
+  `/openapi.json`, но с настройками по умолчанию, без `.env` и env. CI проверяет свежесть и показывает
+  ломающие изменения относительно базовой ветки (oasdiff, пока без падения).
+- Версия — из git-тега `vX.Y.Z` (ADR 0010), в образ передаётся `--build-arg VERSION`.
+- `release.yml`: тег на коммите из `main` → образ `ghcr.io/atomic-tasks/backend` (`X.Y.Z`, `X.Y`, `latest`,
+  amd64) → GitHub Release с `openapi.json`, экспортированным из этого образа.
+
+Спека: `docs/specs/0005-openapi-and-release/`.

@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# Проверкам запись не нужна; джоба, которой нужна, просит её явно (guides/github-settings.md)
+permissions:
+  contents: read
+
 jobs:
   checks:
     runs-on: ubuntu-latest
@@ -18,8 +22,45 @@ jobs:
       - run: uv run ruff check
       - run: uv run mypy
       - run: uv run lint-imports
+      - name: openapi.json is up to date
+        run: |
+          uv run python -m atomic_tasks openapi --output openapi.json
+          git diff --exit-code openapi.json || {
+            echo "::error file=openapi.json::Схема устарела. Запусти: uv run python -m atomic_tasks openapi --output openapi.json"
+            exit 1
+          }
       # Пока тестов нет, pytest возвращает 5 ("no tests collected") — это не ошибка
       - run: uv run pytest || [ $? -eq 5 ]
+
+  # Ломающие изменения API относительно базовой ветки. Пока только предупреждает (спека 0005):
+  # без --fail-on oasdiff возвращает 0. Валить начнём перед первым клиентом.
+  api-breaking:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Base schema
+        id: base
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --depth=1 origin "$BASE_REF"
+          if git show "FETCH_HEAD:openapi.json" > base-openapi.json 2>/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "В базовой ветке ещё нет openapi.json — сравнивать не с чем." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: oasdiff breaking
+        if: steps.base.outputs.exists == 'true'
+        run: |
+          oasdiff() { docker run --rm -v "$PWD:/specs" -w /specs tufin/oasdiff:v1.35.0 "$@"; }
+          oasdiff breaking base-openapi.json openapi.json --format githubactions
+          {
+            echo "### Ломающие изменения API"
+            echo '```'
+            oasdiff breaking base-openapi.json openapi.json --format text
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   secrets:
     runs-on: ubuntu-latest
