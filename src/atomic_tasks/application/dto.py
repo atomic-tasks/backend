@@ -85,3 +85,54 @@ class TaskInfo:
     status: TaskStatus
     created_at: datetime
     updated_at: datetime
+
+
+# Чтение дерева (spec 0003). Приоритет — Decimal: произведение весов без потери точности.
+
+
+@dataclass(frozen=True, kw_only=True)
+class FolderCrumb:
+    """Элемент пути по дереву: хлебные крошки и путь до задачи."""
+
+    id: UUID
+    title: str
+    weight: Decimal
+    status: FolderStatus
+
+
+@dataclass(frozen=True, kw_only=True)
+class RankedFolder:
+    """Подпапка в проводнике с абсолютным приоритетом (от корня)."""
+
+    info: FolderInfo
+    priority: Decimal
+
+
+@dataclass(frozen=True, kw_only=True)
+class RankedTask:
+    """Задача в проводнике с абсолютным приоритетом (от корня)."""
+
+    info: TaskInfo
+    priority: Decimal
+
+
+@dataclass(frozen=True, kw_only=True)
+class FolderListing:
+    """Режим «проводник»: папка, путь к ней и прямые дети."""
+
+    folder: FolderInfo
+    path: list[FolderCrumb]  # от корня до папки включительно
+    active_branch: bool  # папка и все предки active — ветка видна во «всём вложенном» от корня
+    folders: list[RankedFolder]
+    tasks: list[RankedTask]
+
+
+@dataclass(frozen=True, kw_only=True)
+class NestedTask:
+    """Режим «всё вложенное»: задача с приоритетом относительно выбранной папки."""
+
+    info: TaskInfo
+    priority: Decimal
+    path: list[
+        FolderCrumb
+    ]  # от подпапки выбранной папки до папки задачи; пусто — задача прямо в ней

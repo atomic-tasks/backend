@@ -20,3 +20,7 @@ class NotFoundError(ApplicationError):
 
     def __init__(self, what: str = "Объект") -> None:
         super().__init__(f"{what} не найден.")
+
+
+class InvalidQueryError(ApplicationError):
+    """Неверные параметры чтения (limit, пустой набор статусов) → 400."""
