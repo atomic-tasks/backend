@@ -9,7 +9,13 @@ from atomic_tasks.application.errors import (
 )
 from atomic_tasks.domain.exceptions import (
     DomainError,
+    DoneAncestorError,
+    FolderCycleError,
+    FolderHasOpenItemsError,
+    FolderNotActiveError,
+    FolderNotEmptyError,
     InsufficientScopeError,
+    RootFolderProtectedError,
     TokenLimitExceededError,
     UserDisabledError,
 )
@@ -21,6 +27,13 @@ _STATUS: list[tuple[type[Exception], int]] = [
     (InsufficientScopeError, 403),
     (NotFoundError, 404),
     (TokenLimitExceededError, 409),
+    # Состояние дерева не позволяет действие: запрос верный, мешает текущее состояние.
+    (RootFolderProtectedError, 409),
+    (FolderCycleError, 409),
+    (FolderNotActiveError, 409),
+    (FolderHasOpenItemsError, 409),
+    (FolderNotEmptyError, 409),
+    (DoneAncestorError, 409),
     (DomainError, 422),
     (ApplicationError, 400),
 ]

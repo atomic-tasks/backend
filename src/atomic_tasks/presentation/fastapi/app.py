@@ -7,7 +7,7 @@ from fastapi.routing import APIRoute
 from atomic_tasks.presentation.fastapi.auth import make_authenticate
 from atomic_tasks.presentation.fastapi.docs import add_docs
 from atomic_tasks.presentation.fastapi.errors import register_error_handlers
-from atomic_tasks.presentation.fastapi.routers import health, me, tokens
+from atomic_tasks.presentation.fastapi.routers import folders, health, me, tasks, tokens
 
 
 def _operation_id(route: APIRoute) -> str:
@@ -40,5 +40,7 @@ def create_fastapi_app(
     api_v1 = APIRouter(prefix="/api/v1", dependencies=[Depends(make_authenticate(oidc_issuer))])
     api_v1.include_router(me.router)
     api_v1.include_router(tokens.router)
+    api_v1.include_router(folders.router)
+    api_v1.include_router(tasks.router)
     app.include_router(api_v1)
     return app

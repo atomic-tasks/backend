@@ -16,6 +16,7 @@ from atomic_tasks.application.ports.identities import UserIdentityRepository
 from atomic_tasks.application.ports.oidc import TokenVerifier
 from atomic_tasks.application.ports.tasks import TaskRepository
 from atomic_tasks.application.ports.transaction import TransactionManager
+from atomic_tasks.application.ports.tree import FolderTreeReader
 from atomic_tasks.application.ports.users import UserRepository
 from atomic_tasks.application.registration import RegistrationPolicy
 from atomic_tasks.application.services.auth_service import AuthService
@@ -23,11 +24,13 @@ from atomic_tasks.application.services.folder_service import FolderService
 from atomic_tasks.application.services.identity_service import IdentityService
 from atomic_tasks.application.services.task_service import TaskService
 from atomic_tasks.application.services.token_service import TokenService
+from atomic_tasks.application.services.tree_service import TreeService
 from atomic_tasks.application.services.user_service import UserService
 from atomic_tasks.config.settings import AuthSettings, PostgresSettings, Settings
 from atomic_tasks.infrastructure.auth.access_policy import OwnerAccessPolicy
 from atomic_tasks.infrastructure.auth.oidc import OidcConfig, OidcTokenVerifier
 from atomic_tasks.infrastructure.clock import SystemClock
+from atomic_tasks.infrastructure.postgres.readers.tree import SqlFolderTreeReader
 from atomic_tasks.infrastructure.postgres.repositories.api_tokens import SqlApiTokenRepository
 from atomic_tasks.infrastructure.postgres.repositories.folders import SqlFolderRepository
 from atomic_tasks.infrastructure.postgres.repositories.identities import SqlUserIdentityRepository
@@ -73,6 +76,7 @@ class PostgresProvider(Provider):
     api_tokens = provide(SqlApiTokenRepository, scope=Scope.REQUEST, provides=ApiTokenRepository)
     folders = provide(SqlFolderRepository, scope=Scope.REQUEST, provides=FolderRepository)
     tasks = provide(SqlTaskRepository, scope=Scope.REQUEST, provides=TaskRepository)
+    tree_reader = provide(SqlFolderTreeReader, scope=Scope.REQUEST, provides=FolderTreeReader)
     identities = provide(
         SqlUserIdentityRepository,
         scope=Scope.REQUEST,
@@ -96,6 +100,7 @@ class ServicesProvider(Provider):
     access_policy = provide(OwnerAccessPolicy, scope=Scope.APP, provides=AccessPolicy)
     folder_service = provide(FolderService)
     task_service = provide(TaskService)
+    tree_service = provide(TreeService)
 
 
 class AuthProvider(Provider):
