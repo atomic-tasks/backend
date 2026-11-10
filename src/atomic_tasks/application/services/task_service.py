@@ -3,13 +3,13 @@ from decimal import Decimal
 from uuid import UUID
 
 from atomic_tasks.application.dto import Identity, TaskInfo
-from atomic_tasks.application.errors import NotFoundError
 from atomic_tasks.application.ports.access import AccessPolicy
 from atomic_tasks.application.ports.clock import Clock
 from atomic_tasks.application.ports.folders import FolderRepository
 from atomic_tasks.application.ports.tasks import TaskRepository
 from atomic_tasks.application.ports.transaction import TransactionManager
-from atomic_tasks.application.services.nodes import has_done, readable, task_info, writable
+from atomic_tasks.application.services.nodes import readable, task_info, writable
+from atomic_tasks.application.services.status_rules import apply_task_status
 from atomic_tasks.domain.entities.api_token import TokenScope
 from atomic_tasks.domain.entities.folder import Folder
 from atomic_tasks.domain.entities.task import Task, TaskStatus
@@ -102,13 +102,7 @@ class TaskService:
         """Меняет статус; открыть задачу под выполненной папкой нельзя."""
         identity.require_scope(TokenScope.WRITE)
         task = await self._writable(identity, task_id)
-        # Папка задачи принадлежит тому же владельцу, поэтому отдельная проверка доступа не нужна:
-        # из неё берутся только статусы для правила, наружу ничего не уходит.
-        folder = await self._folders.get(task.folder_id)
-        if folder is None:  # FK не даёт этому случиться
-            raise NotFoundError(FOLDER)
-        path = await self._folders.path_to_root(folder)
-        task.change_status(status, has_done_ancestor=has_done(path), now=self._clock.now())
+        await apply_task_status(self._folders, task, status, self._clock.now())
         await self._tx.commit()
         return task_info(task)
 
