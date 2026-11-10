@@ -7,7 +7,8 @@ from atomic_tasks.application.ports.access import AccessPolicy
 from atomic_tasks.application.ports.clock import Clock
 from atomic_tasks.application.ports.folders import FolderRepository
 from atomic_tasks.application.ports.transaction import TransactionManager
-from atomic_tasks.application.services.nodes import folder_info, has_done, readable, writable
+from atomic_tasks.application.services.nodes import folder_info, readable, writable
+from atomic_tasks.application.services.status_rules import apply_folder_status
 from atomic_tasks.domain.entities.api_token import TokenScope
 from atomic_tasks.domain.entities.folder import Folder, FolderStatus
 from atomic_tasks.domain.values import Weight
@@ -112,18 +113,7 @@ class FolderService:
         """Меняет статус папки; правила — в Folder.change_status."""
         identity.require_scope(TokenScope.WRITE)
         folder = await self._writable(identity, folder_id)
-        # Считаем оба факта всегда, даже если для этого статуса нужен один:
-        # тогда правило целиком живёт в домене, а не дублируется условием здесь.
-        # На личных объёмах лишний запрос дешевле рассинхрона правил.
-        open_descendants = await self._folders.count_open_descendants(folder)
-        parent = await self._folders.get(folder.parent_id) if folder.parent_id else None
-        ancestors = await self._folders.path_to_root(parent) if parent else []
-        folder.change_status(
-            status,
-            open_descendants=open_descendants,
-            has_done_ancestor=has_done(ancestors),
-            now=self._clock.now(),
-        )
+        await apply_folder_status(self._folders, folder, status, self._clock.now())
         await self._tx.commit()
         return folder_info(folder)
 
