@@ -1,0 +1,34 @@
+# Конфиг Rauthy для прода (спека 0006). Секреты и всё, что зависит от сервера (PUB_URL, TRUSTED_PROXIES,
+# RP_ID, RP_ORIGIN), приходят из env через deploy/compose.yaml.
+# Справочник: https://sebadob.github.io/rauthy/config/config.html
+#
+# Отличия от локального docker/rauthy/config.toml: cookie_mode и admin_force_mfa по умолчанию
+# (безопасные cookies, MFA админки обязательна), proxy_mode за Traefik.
+
+[cluster]
+node_id = 1
+nodes = ["1 localhost:8100 localhost:8200"]
+
+[database]
+# Наш Postgres: один бэкап на всё. PG_PASSWORD — из env.
+hiqlite = false
+pg_host = "postgres"
+pg_user = "rauthy"
+pg_db_name = "rauthy"
+# Postgres только во внутренней docker-сети
+pg_tls = "disable"
+
+[dynamic_clients]
+# Регистрация клиентов для коннектора Claude — спека 0007.
+enable = false
+
+[server]
+# TLS терминирует Traefik
+scheme = "http"
+port_http = 8080
+proxy_mode = true
+swagger_ui_enable = false
+
+[user_registration]
+# Пользователи появляются только через вход по Google или GitHub (auto-onboarding провайдера).
+enable = false

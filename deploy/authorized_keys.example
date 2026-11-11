@@ -1,0 +1,4 @@
+# Строка для ~deploy/.ssh/authorized_keys на сервере (docs/deploy.md, ADR 0011).
+# restrict — без shell, pty, проброса портов и агента; command — единственное, что можно выполнить ключом:
+# аргумент, переданный в ssh, попадает в deploy.sh через SSH_ORIGINAL_COMMAND и проверяется там.
+restrict,command="/opt/atomic-tasks/deploy.sh" ssh-ed25519 AAAA...замените-на-публичный-ключ github-actions-atomic-tasks-deploy

@@ -1,0 +1,123 @@
+# Прод-стек (спека 0006, ADR 0011). Запускается только через deploy.sh: он задаёт VERSION и применяет миграции.
+# Все значения о конкретном сервере — в .env рядом с этим файлом (шаблон — .env.example).
+name: atomic-tasks
+
+x-traefik-tls: &traefik-tls
+  traefik.enable: "true"
+  traefik.docker.network: ${TRAEFIK_NETWORK:?}
+
+# Настройки приложения передаются поимённо, а не всем .env: секреты Rauthy в контейнер API не попадают.
+x-app-env: &app-env
+  POSTGRES__HOST: postgres
+  POSTGRES__USER: ${POSTGRES__USER}
+  POSTGRES__PASSWORD: ${POSTGRES__PASSWORD}
+  POSTGRES__DB: ${POSTGRES__DB}
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES__USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES__PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES__DB:?}
+      RAUTHY_DB_PASSWORD: ${RAUTHY_DB_PASSWORD:?}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      # база и роль для Rauthy; скрипт выполняется только на пустом томе
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rauthy:
+    image: ghcr.io/sebadob/rauthy:0.37.2
+    restart: unless-stopped
+    environment:
+      BOOTSTRAP_ADMIN_EMAIL: ${RAUTHY_ADMIN_EMAIL:?}
+      PG_PASSWORD: ${RAUTHY_DB_PASSWORD}
+      ENC_KEYS: ${RAUTHY_ENC_KEYS:?}
+      ENC_KEY_ACTIVE: ${RAUTHY_ENC_KEY_ACTIVE:?}
+      HQL_SECRET_RAFT: ${RAUTHY_HQL_SECRET_RAFT:?}
+      HQL_SECRET_API: ${RAUTHY_HQL_SECRET_API:?}
+      PUB_URL: ${AUTH_HOST:?}
+      PROXY_MODE: "true"
+      # С proxy_mode Rauthy блокирует запросы не от доверенных адресов. Traefik — снаружи,
+      # внутренняя сеть — API ходит за JWKS напрямую (AUTH__INTERNAL_URL). Значения через \n.
+      TRUSTED_PROXIES: |-
+        ${TRAEFIK_SUBNET:?}
+        ${INTERNAL_SUBNET:-172.31.250.0/24}
+      RP_ID: ${AUTH_HOST}
+      # порт обязателен, даже стандартный
+      RP_ORIGIN: https://${AUTH_HOST}:443
+    volumes:
+      - ./rauthy/config.toml:/app/config.toml:ro
+      - rauthy-data:/app/data
+    networks: [internal, traefik]
+    labels:
+      <<: *traefik-tls
+      traefik.http.routers.atomic-auth.rule: Host(`${AUTH_HOST}`)
+      traefik.http.routers.atomic-auth.entrypoints: ${TRAEFIK_ENTRYPOINT:?}
+      traefik.http.routers.atomic-auth.tls.certresolver: ${TRAEFIK_CERTRESOLVER:?}
+      traefik.http.services.atomic-auth.loadbalancer.server.port: "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Одноразовый: deploy.sh запускает его перед перезапуском API. `up` его не трогает.
+  migrate:
+    image: ${IMAGE:-ghcr.io/atomic-tasks/backend}:${VERSION:?запускайте через deploy.sh или задайте VERSION}
+    profiles: [migrate]
+    command: ["alembic", "upgrade", "head"]
+    environment: *app-env
+    networks: [internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: ${IMAGE:-ghcr.io/atomic-tasks/backend}:${VERSION:?запускайте через deploy.sh или задайте VERSION}
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      AUTH__AUDIENCE: ${AUTH__AUDIENCE:?}
+      AUTH__SWAGGER_CLIENT_ID: ${AUTH__SWAGGER_CLIENT_ID:?}
+      AUTH__ALLOWED_EMAILS: ${AUTH__ALLOWED_EMAILS:?}
+      AUTH__ISSUER: https://${AUTH_HOST}/auth/v1/
+      # JWKS — напрямую, без выхода наружу и обратно через Traefik
+      AUTH__INTERNAL_URL: http://rauthy:8080
+      MCP__ALLOWED_HOSTS: '["${API_HOST:?}"]'
+      # uvicorn --proxy-headers доверяет X-Forwarded-* только от Traefik
+      FORWARDED_ALLOW_IPS: ${TRAEFIK_SUBNET}
+    networks: [internal, traefik]
+    labels:
+      <<: *traefik-tls
+      traefik.http.routers.atomic-api.rule: Host(`${API_HOST}`)
+      traefik.http.routers.atomic-api.entrypoints: ${TRAEFIK_ENTRYPOINT}
+      traefik.http.routers.atomic-api.tls.certresolver: ${TRAEFIK_CERTRESOLVER}
+      traefik.http.routers.atomic-api.middlewares: atomic-api-body-limit
+      # Тело запроса больше 1 МиБ отклоняется на прокси (413), до FastAPI не доходит.
+      # MCP отвечает JSON (json_response=True), буферизация стримы не ломает.
+      traefik.http.middlewares.atomic-api-body-limit.buffering.maxRequestBodyBytes: "1048576"
+      traefik.http.services.atomic-api.loadbalancer.server.port: "8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rauthy:
+        condition: service_started
+
+networks:
+  internal:
+    ipam:
+      config:
+        - subnet: ${INTERNAL_SUBNET:-172.31.250.0/24}
+  traefik:
+    name: ${TRAEFIK_NETWORK}
+    external: true
+
+volumes:
+  postgres-data:
+  rauthy-data:
