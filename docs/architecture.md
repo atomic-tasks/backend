@@ -125,3 +125,18 @@ IdP — Rauthy в том же compose (ADR 0009). Бэкенд только пр
   amd64) → GitHub Release с `openapi.json`, экспортированным из этого образа.
 
 Спека: `docs/specs/0005-openapi-and-release/`.
+
+## Деплой
+
+VPS с уже работающим Traefik (ADR 0011). Runbook — `docs/deploy.md`, файлы стека — `deploy/`.
+
+- Один compose-стек: Postgres, Rauthy, migrate, API. API — на `API_HOST`, Rauthy — на `AUTH_HOST`
+  (отдельный хост IdP: его можно вынести, не меняя issuer). Наружу — только через Traefik, порты на хост
+  не публикуются, Postgres только во внутренней сети. Лимит тела запроса к API — 1 МиБ на прокси.
+- Всё о сервере — в `.env` на сервере и в GitHub environment `production`; в репозитории только шаблоны.
+- `release.yml` кладёт в релиз `deploy.tar.gz` (конфиг стека этой версии), затем джоба `deploy` с подтверждением
+  выполняет `ssh deploy@host X.Y.Z`. На сервере ключ ограничен forced command `deploy.sh`: скачать бандл,
+  pull образа `:X.Y.Z`, миграции, `up`, проверка `info.version`. Откат — `workflow_dispatch` с версией.
+- Бэкап — `backup.sh` по cron: `pg_dump` обеих баз, 7 дней на сервере.
+
+Спека: `docs/specs/0006-deploy/`.

@@ -1,9 +1,16 @@
-# Релиз по тегу vX.Y.Z (спека 0005): образ в ghcr и GitHub Release с openapi.json этой версии.
+# Релиз по тегу vX.Y.Z (спека 0005): образ в ghcr и GitHub Release с openapi.json и deploy.tar.gz этой версии.
+# Затем выкатка на сервер с подтверждением в environment production (спека 0006, ADR 0011).
+# Ручной запуск — только выкатка уже опубликованной версии (откат или повтор).
 name: Release
 
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Версия для выкатки, X.Y.Z (релиз уже опубликован)"
+        required: true
 
 permissions:
   contents: read
@@ -14,6 +21,7 @@ concurrency:
 
 jobs:
   release:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write   # GitHub Release
@@ -80,8 +88,70 @@ jobs:
                <(jq -S 'del(.info.version)' release-openapi.json)
           mv release-openapi.json openapi.json
 
+      # Конфиг стека этой версии: deploy.sh на сервере скачивает его из релиза.
+      - name: Deploy bundle
+        run: |
+          tar -czf deploy.tar.gz --owner=0 --group=0 \
+            -C deploy compose.yaml deploy.sh backup.sh rauthy/config.toml \
+            -C .. docker/postgres/init/01-rauthy.sh
+
       - name: GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
-        run: gh release create "$TAG" openapi.json --verify-tag --generate-notes --title "$TAG"
+        run: gh release create "$TAG" openapi.json deploy.tar.gz --verify-tag --generate-notes --title "$TAG"
+
+  deploy:
+    needs: release
+    # После релиза по тегу или ручным запуском (тогда release пропущен)
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    # Подтверждение автора и секреты SSH — только в этом environment (docs/deploy.md)
+    environment:
+      name: production
+      url: https://${{ vars.API_HOST }}/docs
+    concurrency:
+      group: production
+      cancel-in-progress: false
+    permissions: {}
+    steps:
+      - name: Version
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          TAG: ${{ github.ref_name }}
+          INPUT: ${{ inputs.version }}
+        run: |
+          if [ "$EVENT" = push ]; then version="${TAG#v}"; else version="$INPUT"; fi
+          if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Версия '$version' не вида X.Y.Z"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # Без сторонних actions: ключ ограничен на сервере forced command, передаём только версию.
+      - name: Deploy
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ vars.DEPLOY_HOST }}
+          PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -p "$PORT" \
+            -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$DEPLOY_USER@$HOST" "$VERSION"
+
+      # Снаружи, через Traefik и HTTPS: отвечает именно новая версия
+      - name: Check public endpoint
+        env:
+          API_HOST: ${{ vars.API_HOST }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          running="$(curl -fsS --retry 5 --retry-all-errors "https://$API_HOST/openapi.json" | jq -r .info.version)"
+          test "$running" = "$VERSION" || { echo "::error::Снаружи отвечает версия $running, ожидалась $VERSION"; exit 1; }
