@@ -162,7 +162,22 @@ Cron пользователя `deploy` (`crontab -e`):
 scp -r deploy@<server>:/var/backups/atomic-tasks/"$(date +%F)" ~/atomic-tasks-backups/
 ```
 
-Восстановление (на сервере, под deploy):
+Проверка, что бэкап восстанавливается (прод не трогается — разворачиваем во временную базу рядом):
+
+```bash
+cd /opt/atomic-tasks && export VERSION=$(cat .deployed-version) && ./backup.sh
+D=/var/backups/atomic-tasks/$(date +%F)
+docker compose exec -T postgres sh -c 'createdb -U "$POSTGRES_USER" restore_check && pg_restore --no-owner -U "$POSTGRES_USER" -d restore_check' < "$D/atomic_tasks.dump"
+for db in atomic_tasks restore_check; do
+  docker compose exec -T postgres sh -c "psql -U \"\$POSTGRES_USER\" -d $db -tAc \"select '$db', (select count(*) from users), (select count(*) from folders), (select count(*) from tasks)\""
+done   # числа должны совпасть
+docker compose exec -T postgres pg_restore -l < "$D/rauthy.dump" | head -5   # оглавление без ошибок
+docker compose exec -T postgres sh -c 'dropdb -U "$POSTGRES_USER" restore_check'
+```
+
+Дата каталога — по часам сервера (обычно UTC).
+
+Восстановление поверх прода (на сервере, под deploy):
 
 ```bash
 cd /opt/atomic-tasks && export VERSION=$(cat .deployed-version)
