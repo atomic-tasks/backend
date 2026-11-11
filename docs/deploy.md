@@ -92,14 +92,31 @@ Change visibility), иначе pull упадёт с `unauthorized`.
 
 ## 6. Выкатка из GitHub Actions
 
-Один раз:
+Один раз, **до первого тега с джобой `deploy`**: если environment `production` не существует, GitHub создаёт
+его при первом запуске джобы сам — без правил защиты.
 
-1. Ключ CI (на ноутбуке, без пароля):
+1. Environment `production` с защитой (или то же в UI, см. шаг 4):
+
+   ```bash
+   R=repos/atomic-tasks/backend/environments/production
+   gh api -X PUT $R --input - <<EOF
+   {"wait_timer":0,"prevent_self_review":false,"can_admins_bypass":false,
+    "reviewers":[{"type":"User","id":$(gh api user -q .id)}],
+    "deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}
+   EOF
+   gh api -X POST $R/deployment-branch-policies -f name=main -f type=branch
+   gh api -X POST $R/deployment-branch-policies -f name='v*' -f type=tag
+   ```
+
+   - reviewer — джоба ждёт вашего Approve; `prevent_self_review` выключен, иначе одобрить свой запуск некому;
+   - `can_admins_bypass: false` — подтверждение не обходит и админ;
+   - только ветка `main` и теги `v*` получают секреты: ветка с изменённым `release.yml` до ключа не дотянется.
+2. Ключ CI (на ноутбуке, без пароля):
    `ssh-keygen -t ed25519 -N '' -C github-actions-atomic-tasks-deploy -f deploy_key`.
    Публичную часть — на сервер строкой из `deploy/authorized_keys.example`.
-2. `known_hosts` сервера: `ssh-keyscan -p <порт> <server>`. Сверить отпечаток с выводом на самом сервере
+3. `known_hosts` сервера: `ssh-keyscan -p <порт> <server>`. Сверить отпечаток с выводом на самом сервере
    `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` — иначе закрепим чужой ключ.
-3. GitHub → Settings → Environments → **production**:
+4. GitHub → Settings → Environments → **production** (проверить правила из шага 1):
    - Required reviewers — вы;
    - Deployment branches and tags — Selected: тег `v*` и ветка `main` (ручной запуск — только из `main`);
    - Secrets: `DEPLOY_SSH_KEY` (приватный ключ целиком), `DEPLOY_KNOWN_HOSTS` (вывод ssh-keyscan);

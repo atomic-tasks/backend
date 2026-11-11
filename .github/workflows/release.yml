@@ -139,6 +139,12 @@ jobs:
           DEPLOY_USER: ${{ vars.DEPLOY_USER }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
+          for v in SSH_KEY KNOWN_HOSTS HOST DEPLOY_USER; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Не задан $v в environment production (docs/deploy.md, п. 6)"
+              exit 1
+            fi
+          done
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
