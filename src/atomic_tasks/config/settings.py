@@ -26,6 +26,9 @@ class McpSettings(BaseModel):
     # Включает OAuth для коннекторов: метаданные ресурса (RFC 9728) и токены с этим aud (ADR 0012).
     # Пусто — выключено, /mcp принимает только PAT и токены наших клиентов.
     resource_url: str | None = None
+    # Хосты CIMD-документов клиентов, которым можно в MCP по OAuth (client_id = https-URL).
+    # Rauthy выдаёт код любому такому клиенту без экрана согласия — чужие отсекаем здесь (ADR 0012).
+    trusted_client_hosts: list[str] = ["claude.ai", "claude.com"]
 
 
 class AuthSettings(BaseModel):

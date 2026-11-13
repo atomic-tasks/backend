@@ -5,6 +5,7 @@ import json
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
 import jwt
 from jwt import PyJWKClient
@@ -26,6 +27,15 @@ class OidcConfig:
     internal_url: str | None = None
     # Публичный адрес ресурса MCP (RFC 8707). Токен с таким aud принимается только на /mcp.
     mcp_resource: str | None = None
+    # Хосты документов CIMD-клиентов, которым можно выдавать доступ к MCP (ADR 0012).
+    mcp_trusted_client_hosts: frozenset[str] = frozenset()
+
+
+def _issued_to(payload: dict[str, Any], client_ids: list[str]) -> bool:
+    """Токен выдан одному из наших клиентов (Swagger и т.п.), а не по ресурсу MCP."""
+    aud = payload["aud"]
+    values = [aud] if isinstance(aud, str) else aud
+    return any(value in client_ids for value in values)
 
 
 class OidcTokenVerifier:
@@ -53,6 +63,11 @@ class OidcTokenVerifier:
         except jwt.PyJWTError as exc:
             raise AuthenticationError("Токен недействителен или истёк.") from exc
 
+        if not _issued_to(payload, self._config.audience):
+            # Принят только по ресурсу MCP — значит, клиент зарегистрировался сам (CIMD).
+            # Rauthy выдаёт таким код без экрана согласия, поэтому доверяем лишь известным хостам.
+            self._require_trusted_client(payload.get("azp"))
+
         if "email" not in payload and self._userinfo_url:
             payload = {**await asyncio.to_thread(self._fetch_userinfo, raw), **payload}
         return VerifiedClaims(
@@ -69,6 +84,22 @@ class OidcTokenVerifier:
         if target is AuthTarget.MCP and self._config.mcp_resource:
             audience.append(self._config.mcp_resource)
         return audience
+
+    def _require_trusted_client(self, azp: object) -> None:
+        """client_id CIMD-клиента — https-URL его документа; доверяем только хосту из настройки."""
+        try:
+            url = urlsplit(azp) if isinstance(azp, str) else None
+            trusted = (
+                url is not None
+                and url.scheme == "https"
+                and url.port is None  # ValueError на мусорном порту
+                and url.username is None
+                and (url.hostname or "") in self._config.mcp_trusted_client_hosts
+            )
+        except ValueError:
+            trusted = False
+        if not trusted:
+            raise AuthenticationError("Этот клиент не может подключаться к MCP.")
 
     async def _jwks_client(self) -> PyJWKClient:
         async with self._lock:

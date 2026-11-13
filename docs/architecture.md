@@ -110,7 +110,9 @@ IdP — Rauthy в том же compose (ADR 0009). Бэкенд только пр
   отдаёт `WWW-Authenticate: Bearer resource_metadata=…`, метаданные ресурса (RFC 9728) — на
   `/.well-known/oauth-protected-resource/mcp`. Клиент регистрируется в Rauthy через CIMD (ephemeral clients,
   DCR выключен) и получает токен с `aud` = `MCP__RESOURCE_URL` (RFC 8707). Такой токен принимается только
-  на `/mcp`, в REST — нет: допустимые `aud` выбирает верификатор по `AuthTarget`.
+  на `/mcp`, в REST — нет: допустимые `aud` выбирает верификатор по `AuthTarget`. Rauthy выдаёт код
+  CIMD-клиенту без экрана согласия, поэтому такой токен принимается, только если `azp` — `https`-адрес на хосте
+  из `MCP__TRUSTED_CLIENT_HOSTS` (по умолчанию `claude.ai`, `claude.com`).
 
 Спеки: `docs/specs/0001-users-and-auth/`, `docs/specs/0007-claude-connector-oauth/`.
 

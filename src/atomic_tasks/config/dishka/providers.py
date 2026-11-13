@@ -116,6 +116,9 @@ class AuthProvider(Provider):
                 audience=settings.auth.audience,
                 internal_url=settings.auth.internal_url,
                 mcp_resource=settings.mcp.resource_url,
+                mcp_trusted_client_hosts=frozenset(
+                    host.lower() for host in settings.mcp.trusted_client_hosts
+                ),
             ),
         )
 

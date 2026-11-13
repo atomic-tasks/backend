@@ -130,16 +130,48 @@ async def test_no_audience_configured_means_idp_login_disabled(idp: str) -> None
 
 
 MCP_RESOURCE = "https://atomic.test/mcp"
+CLAUDE_CLIENT = "https://claude.ai/oauth/some-client"
+
+
+def _mcp_verifier(idp: str) -> OidcTokenVerifier:
+    return _verifier(
+        idp, mcp_resource=MCP_RESOURCE, mcp_trusted_client_hosts=frozenset({"claude.ai"})
+    )
+
+
+def _connector_token(idp: str, client_id: Any = CLAUDE_CLIENT) -> str:
+    """Как у Rauthy для CIMD-клиента: aud = [client_id, ресурс], azp = client_id."""
+    return _token(idp, aud=[str(client_id), MCP_RESOURCE], azp=client_id)
 
 
 async def test_mcp_resource_token_works_only_on_mcp(idp: str) -> None:
     # Токен коннектора (aud = ресурс MCP, client_id неизвестен) нельзя переиграть против REST.
-    token = _token(idp, aud=["https://claude.ai/oauth/some-client", MCP_RESOURCE])
-    verifier = _verifier(idp, mcp_resource=MCP_RESOURCE)
+    token = _connector_token(idp)
+    verifier = _mcp_verifier(idp)
     claims = await verifier.verify(token, target=AuthTarget.MCP)
     assert claims.subject == "user-1"
     with pytest.raises(AuthenticationError):
         await verifier.verify(token, target=AuthTarget.API)
+
+
+@pytest.mark.parametrize(
+    "client_id",
+    [
+        "https://evil.example/cimd.json",  # чужой CIMD-документ: Rauthy выдал код без согласия
+        "https://claude.ai.evil.example/cimd.json",
+        "https://claude.ai@evil.example/cimd.json",
+        "https://claude.ai:8443/cimd.json",
+        "https://claude.ai:bad/cimd.json",
+        "http://claude.ai/cimd.json",
+        None,  # azp нет
+        ["https://claude.ai/x"],  # не строка
+    ],
+)
+async def test_mcp_resource_token_from_untrusted_client_is_rejected(
+    idp: str, client_id: Any
+) -> None:
+    with pytest.raises(AuthenticationError):
+        await _mcp_verifier(idp).verify(_connector_token(idp, client_id), target=AuthTarget.MCP)
 
 
 async def test_mcp_resource_token_rejected_when_resource_not_configured(idp: str) -> None:
