@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Protocol
 
+from atomic_tasks.application.dto import AuthTarget
+
 
 @dataclass(frozen=True, kw_only=True)
 class VerifiedClaims:
@@ -14,6 +16,9 @@ class VerifiedClaims:
 
 
 class TokenVerifier(Protocol):
-    async def verify(self, raw: str) -> VerifiedClaims:
-        """Проверяет подпись, iss, aud, exp. Недействительный токен — AuthenticationError."""
+    async def verify(self, raw: str, *, target: AuthTarget) -> VerifiedClaims:
+        """Проверяет подпись, iss, aud, exp. Недействительный токен — AuthenticationError.
+
+        Допустимые `aud` зависят от `target`: токен, выданный для ресурса MCP, не годится для REST.
+        """
         ...

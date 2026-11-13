@@ -12,6 +12,10 @@ from atomic_tasks.config.settings import Settings
 from atomic_tasks.infrastructure.postgres.mapping import map_entities
 from atomic_tasks.presentation.fastapi.app import create_fastapi_app
 from atomic_tasks.presentation.mcp.auth import McpAuthMiddleware
+from atomic_tasks.presentation.mcp.metadata import (
+    register_resource_metadata,
+    resource_metadata_url,
+)
 from atomic_tasks.presentation.mcp.server import create_mcp_server, create_mcp_starlette_app
 
 
@@ -21,6 +25,12 @@ def create_app(settings: Settings | None = None, *overrides: Provider) -> FastAP
     container = create_container(settings, *overrides)
 
     mcp_server = create_mcp_server(version=settings.version, container=container)
+    metadata_url: str | None = None
+    if resource_url := settings.mcp.resource_url:
+        register_resource_metadata(
+            mcp_server, resource_url=resource_url, issuer=settings.auth.issuer
+        )
+        metadata_url = resource_metadata_url(resource_url)
     mcp_app = create_mcp_starlette_app(mcp_server, allowed_hosts=settings.mcp.allowed_hosts)
 
     @asynccontextmanager
@@ -40,5 +50,8 @@ def create_app(settings: Settings | None = None, *overrides: Provider) -> FastAP
     )
     setup_dishka(container, app)
     # MCP монтируется последним: сначала матчатся маршруты FastAPI, остальное (/mcp) уходит в MCP
-    app.mount("/", McpAuthMiddleware(mcp_app, container, path="/mcp"))
+    app.mount(
+        "/",
+        McpAuthMiddleware(mcp_app, container, path="/mcp", resource_metadata_url=metadata_url),
+    )
     return app

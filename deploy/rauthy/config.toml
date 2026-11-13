@@ -19,8 +19,13 @@ pg_db_name = "rauthy"
 pg_tls = "disable"
 
 [dynamic_clients]
-# Регистрация клиентов для коннектора Claude — спека 0007.
+# Открытая регистрация клиентов (DCR) выключена: MCP-клиенты приходят через CIMD (ADR 0012).
 enable = false
+
+[ephemeral_clients]
+# CIMD: client_id — HTTPS-адрес документа клиента (Claude, Claude Code). ADR 0012, спека 0007.
+# Разрешённый ресурс — EPHEMERAL_CLIENTS_ALLOWED_RESOURCES в compose (зависит от API_HOST).
+enable = true
 
 [server]
 # TLS терминирует Traefik

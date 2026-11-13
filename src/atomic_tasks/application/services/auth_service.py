@@ -1,4 +1,4 @@
-from atomic_tasks.application.dto import AuthMethod, Identity
+from atomic_tasks.application.dto import AuthMethod, AuthTarget, Identity
 from atomic_tasks.application.errors import AuthenticationError
 from atomic_tasks.application.ports.oidc import TokenVerifier
 from atomic_tasks.application.services.identity_service import IdentityService
@@ -22,13 +22,13 @@ class AuthService:
         self._verifier = verifier
         self._identities = identities
 
-    async def authenticate(self, authorization: str | None) -> Identity:
+    async def authenticate(self, authorization: str | None, *, target: AuthTarget) -> Identity:
         credentials = _bearer(authorization)
         if credentials is None:
             raise AuthenticationError
         if looks_like_api_token(credentials):
             return await self._tokens.authenticate(credentials)
-        claims = await self._verifier.verify(credentials)
+        claims = await self._verifier.verify(credentials, target=target)
         user = await self._identities.resolve(claims)
         return Identity(user_id=user.id, scope=TokenScope.WRITE, method=AuthMethod.SESSION)
 

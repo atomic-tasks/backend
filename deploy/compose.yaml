@@ -53,6 +53,10 @@ services:
       RP_ID: ${AUTH_HOST}
       # порт обязателен, даже стандартный
       RP_ORIGIN: https://${AUTH_HOST}:443
+      # Клиенты через CIMD получают токен только для нашего /mcp (RFC 8707, ADR 0012)
+      EPHEMERAL_CLIENTS_ALLOWED_RESOURCES: https://${API_HOST:?}/mcp
+      # RFC 8252: redirect на localhost/127.0.0.1 — любой порт (Claude Code слушает на случайном)
+      RFC_8252_ENABLE: "true"
     volumes:
       - ./rauthy/config.toml:/app/config.toml:ro
       - rauthy-data:/app/data
@@ -90,6 +94,8 @@ services:
       # JWKS — напрямую, без выхода наружу и обратно через Traefik
       AUTH__INTERNAL_URL: http://rauthy:8080
       MCP__ALLOWED_HOSTS: '["${API_HOST:?}"]'
+      # Ровно тот адрес, что вводится в коннектор Claude; совпадает с ресурсом в Rauthy
+      MCP__RESOURCE_URL: https://${API_HOST}/mcp
       # uvicorn --proxy-headers доверяет X-Forwarded-* только от Traefik
       FORWARDED_ALLOW_IPS: ${TRAEFIK_SUBNET}
     networks: [internal, traefik]

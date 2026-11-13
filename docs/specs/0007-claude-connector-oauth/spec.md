@@ -1,0 +1,117 @@
+# 0007. OAuth для коннектора в приложении Claude
+
+Статус: согласована
+
+## Зачем
+
+Агент в приложении Claude (веб, телефон) должен работать с деревом задач. Коннекторы в приложении Claude
+не принимают личный токен: они подключаются к удалённому MCP-серверу только через OAuth по спецификации
+MCP Authorization (ADR 0009). Сейчас `/mcp` понимает PAT и JWT от Rauthy, но не сообщает клиенту, где
+получить токен, а Rauthy не умеет регистрировать чужих клиентов.
+
+## Сценарии
+
+- **Подключение коннектора.** Пользователь в приложении Claude добавляет custom connector с адресом
+  `https://<API_HOST>/mcp`. Claude:
+  1. получает `401` с `WWW-Authenticate: Bearer resource_metadata="https://<API_HOST>/.well-known/oauth-protected-resource/mcp"`;
+  2. читает protected resource metadata (RFC 9728): ресурс `https://<API_HOST>/mcp`, сервер авторизации —
+     issuer Rauthy;
+  3. находит метаданные Rauthy и регистрирует себя как клиента (CIMD или DCR — см. «Открытые вопросы»);
+  4. открывает страницу входа Rauthy, пользователь входит через Google/GitHub;
+  5. получает access token с `aud`, содержащим `https://<API_HOST>/mcp` (параметр `resource`, RFC 8707),
+     и refresh token.
+
+  После этого агент видит тулы и дерево пользователя, как Claude Code с PAT.
+- **Обновление токена.** Access token истёк — Claude обновляет его по refresh token без участия пользователя.
+  Привязка к ресурсу сохраняется при обновлении.
+- **Чужой человек.** Человек не из `AUTH__ALLOWED_EMAILS` проходит вход в Rauthy (если у него есть аккаунт) —
+  бэкенд отвечает `403 «Регистрация закрыта»`, как для Swagger сейчас. Данных он не видит.
+- **Claude Code и бот** продолжают работать с PAT без изменений.
+
+## Правила и ограничения
+
+- **Свой OAuth-сервер не пишем** (intent): бэкенд остаётся resource server, токены выдаёт Rauthy.
+- **Привязка токена к ресурсу.** `/mcp` принимает JWT, только если в `aud` есть публичный адрес MCP-ресурса
+  (`MCP__RESOURCE_URL`, например `https://<API_HOST>/mcp`) или один из уже настроенных client id
+  (`AUTH__AUDIENCE`, нынешний клиент Swagger). REST `/api/v1` токен с `aud` = MCP-ресурс **не принимает**:
+  токен, выданный коннектору, нельзя переиграть против REST.
+- **Только доверенные клиенты.** Rauthy выдаёт код любому CIMD-клиенту без экрана согласия, если у пользователя
+  есть сессия (проверено, см. «Открытые вопросы»). Поэтому токен, принятый по ресурсу MCP (без наших client id
+  в `aud`), бэкенд принимает, только если подписанный `azp` есть в `MCP__TRUSTED_CLIENTS`: точный `client_id`
+  или префикс пути, если запись оканчивается на `/`. Иначе — `401`. Доверие к целому хосту не годится:
+  на `github.com` документ CIMD может выложить кто угодно.
+- **Поддерживаемые клиенты** (по умолчанию в `MCP__TRUSTED_CLIENTS`; документы проверены 2026-11-13 — отдаются
+  по HTTPS, `client_id` совпадает с адресом, redirect — только домен вендора или loopback):
+
+  | Клиент | `client_id` |
+  |---|---|
+  | Claude (веб, desktop, мобильный) | `https://claude.ai/oauth/mcp-oauth-client-metadata` |
+  | Claude Code | `https://claude.ai/oauth/claude-code-client-metadata` |
+  | ChatGPT (apps и connectors) | `https://chatgpt.com/oauth/client.json` |
+  | OpenAI Codex | `https://chatgpt.com/oauth/codex/client.json` |
+  | VS Code, Copilot в VS Code | `https://vscode.dev/oauth/client-metadata.json` |
+  | GitHub Copilot CLI | `https://github.com/copilot/cli/client-metadata.json` |
+  | Cursor (CIMD у них в раскатке, иначе DCR) | `https://cursor.com/oauth/mcp-client.json` |
+  | Zed | `https://zed.dev/oauth/client-metadata.json` |
+  | Google Antigravity | `https://antigravity.google/oauth/client-metadata.json` |
+  | Gemini (custom connected apps; префикс, не проверено вживую) | `https://accountlinking.google.com/clientidmetadata/` |
+
+  Не подключатся: клиенты только с DCR — Gemini CLI, Mistral Vibe (Le Chat), Kimi CLI, Copilot Studio.
+  У приложения Kimi (kimi.com) своих MCP-коннекторов нет. DCR не включаем: у DCR-клиента случайный `client_id`,
+  довериться ему нечем, а код Rauthy выдаёт без согласия (ADR 0012).
+- **Права.** Токен коннектора даёт права `write`, как вход через Swagger (тулы создают и меняют задачи).
+- **Доступ к данным** по-прежнему ограничивает allowlist email в бэкенде; email берётся из токена или userinfo,
+  поэтому в метаданных ресурса объявляются scopes `openid email profile`.
+- **Метаданные ресурса** отдаются без аутентификации, только чтение, без данных пользователя.
+  `WWW-Authenticate` с `resource_metadata` — в ответе `401` на `/mcp`; тело ошибки как сейчас (problem+json).
+- Если `MCP__RESOURCE_URL` не задан — OAuth для коннектора выключен: метаданных нет (`404`), `401` без
+  `resource_metadata`, поведение как до этой спеки. Локальная разработка без Rauthy не ломается.
+- **Rauthy:** регистрация клиентов Claude включается так, чтобы клиенту разрешалось запросить ровно наш ресурс
+  (allowlist `resource`), redirect URI Claude — не произвольный. Открытая регистрация пользователей остаётся
+  выключенной. Конфигурация — и локальная (`docker/rauthy`), и прод (`deploy/rauthy`), значения — через env.
+- Ничего о конкретном сервере в репозитории (как в 0006): адреса — переменные.
+
+## Вне рамок
+
+- Свой authorization server, страницы входа и согласия на бэкенде.
+- Тонкие OAuth-scopes (`tasks:read` / `tasks:write`) для коннектора: пока все токены IdP — `write`.
+- Отзыв выданных коннектору токенов из нашего API (отзыв — в админке Rauthy или отключением коннектора в Claude).
+- Коннекторы других клиентов (ChatGPT и т.п.) — заработают, если следуют той же спецификации MCP, но не проверяем.
+- Rate limiting на нашей стороне (до публичного запуска, roadmap); лимит регистраций — средствами Rauthy.
+- Привязка нескольких провайдеров к одному аккаунту (ADR 0009).
+
+## Открытые вопросы
+
+- ~~CIMD или DCR.~~ **CIMD** (ephemeral clients в Rauthy), DCR остаётся выключенным (ADR 0012).
+  Rauthy 0.37.2 объявляет `client_id_metadata_document_supported: true` в обоих discovery-документах.
+  С `ENABLE_EPHEMERAL_CLIENTS=true` и документом Claude Code (`https://claude.ai/oauth/claude-code-client-metadata`)
+  `authorize` открывает страницу входа. Документ клиента Rauthy скачивает только по `https` (`http://` →
+  `BadScheme`) и по умолчанию не ходит на приватные адреса — для локальной проверки нужен публичный документ.
+- ~~Версия Rauthy.~~ Обновление не нужно: в 0.37.2 есть `EPHEMERAL_CLIENTS_ALLOWED_RESOURCES`,
+  `DYN_CLIENT_ALLOWED_RESOURCES`, `invalid_target` (проверено по строкам бинарника образа).
+- ~~Discovery с путём в issuer.~~ Rauthy отдаёт метаданные по всем путям, которые пробует MCP-клиент:
+  `/.well-known/oauth-authorization-server/auth/v1` (с `/` на конце и без) — 200,
+  `/auth/v1/.well-known/openid-configuration` — 200. Маршрутов в Traefik не нужно.
+- ~~Redirect URI Claude.~~ При CIMD их задаёт документ клиента на домене Claude; у нас не настраиваются.
+- ~~Попадает ли `resource` в `aud`.~~ Да: локально Claude Code вошёл через CIMD, и `/mcp` принял токен. Других
+  допустимых `aud` у него нет (`client_id` — URL документа, не наш клиент), значит в `aud` был
+  `http://localhost:8000/mcp`.
+- ~~Согласие пользователя для чужого CIMD-клиента.~~ **Уязвимость, закрыта на бэкенде.** При активной сессии
+  Rauthy 0.37.2 сразу выдаёт код любому ephemeral-клиенту — без экрана согласия. Проверено локально полным путём:
+  код → токен с `aud` = [URL клиента, ресурс MCP] и `azp` = URL клиента → `/mcp` `tools/list` = 200,
+  `/api/v1/me` = 401. Злоумышленнику хватит своего CIMD-документа и одного клика жертвы. Ограничить
+  ephemeral-клиентов по домену в Rauthy нельзя (настроек `EPHEMERAL_CLIENTS_*` для этого нет), поэтому бэкенд
+  проверяет `azp` по `MCP__TRUSTED_CLIENTS` (ADR 0012).
+- **`resource` на шаге authorize не отклоняется.** Запрос с чужим `resource` (`https://evil.example/mcp`)
+  тоже открывает страницу входа. Отклоняет ли Rauthy его на `/token` и попадает ли разрешённый `resource`
+  в `aud` — проверить на сквозном шаге после входа. Наша защита от этого не зависит: `/mcp` сам требует
+  свой ресурс в `aud`.
+- ~~Invalid redirect uri в Claude Code.~~ Claude Code принимает callback на случайном порту
+  (`http://localhost:54321/callback`), а в его CIMD-документе — `http://localhost/callback` без порта.
+  Rauthy по умолчанию сравнивает порт строго → `400 Invalid redirect uri`. Решение — `RFC_8252_ENABLE=true`
+  (RFC 8252 §7.3): для `localhost`, `127.0.0.1`, `[::1]` порт не сравнивается, путь и хост — сравниваются
+  (проверено: `/evil` на loopback и чужой хост — 400). Код авторизации без PKCE-верификатора бесполезен,
+  поэтому чужой процесс на loopback-порту его не обменяет. Приложение Claude (веб, телефон) это не затрагивает:
+  у него фиксированный `https`-redirect.
+- **`token_endpoint_auth_methods_supported` без `none`.** Публичный CIMD-клиент Claude использует `none`.
+  Rauthy при этом страницу входа открывает; не откажет ли Claude из-за метаданных — видно на сквозном шаге.

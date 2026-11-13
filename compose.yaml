@@ -30,6 +30,9 @@ services:
       ENC_KEY_ACTIVE: ${RAUTHY_ENC_KEY_ACTIVE:?задайте RAUTHY_ENC_KEY_ACTIVE в .env}
       HQL_SECRET_RAFT: ${RAUTHY_HQL_SECRET_RAFT:?задайте RAUTHY_HQL_SECRET_RAFT в .env}
       HQL_SECRET_API: ${RAUTHY_HQL_SECRET_API:?задайте RAUTHY_HQL_SECRET_API в .env}
+      # RFC 8252: redirect на localhost/127.0.0.1 совпадает при любом порту. Claude Code слушает callback
+      # на случайном порту, а в его CIMD-документе адрес без порта (спека 0007).
+      RFC_8252_ENABLE: "true"
     ports:
       - "8080:8080"
     volumes:

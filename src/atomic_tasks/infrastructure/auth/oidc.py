@@ -5,10 +5,12 @@ import json
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
 import jwt
 from jwt import PyJWKClient
 
+from atomic_tasks.application.dto import AuthTarget
 from atomic_tasks.application.errors import AuthenticationError
 from atomic_tasks.application.ports.oidc import VerifiedClaims
 
@@ -23,6 +25,45 @@ class OidcConfig:
     audience: list[str]
     # Адрес IdP изнутри Docker-сети, если публичный (issuer) оттуда недоступен.
     internal_url: str | None = None
+    # Публичный адрес ресурса MCP (RFC 8707). Токен с таким aud принимается только на /mcp.
+    mcp_resource: str | None = None
+    # client_id CIMD-клиентов, которым можно в MCP; запись на "/" — префикс (ADR 0012).
+    mcp_trusted_clients: tuple[str, ...] = ()
+
+
+def _issued_to(payload: dict[str, Any], client_ids: list[str]) -> bool:
+    """Токен выдан одному из наших клиентов (Swagger и т.п.), а не по ресурсу MCP."""
+    aud = payload["aud"]
+    values = [aud] if isinstance(aud, str) else aud
+    return any(value in client_ids for value in values)
+
+
+def _is_trusted_client(azp: object, trusted: tuple[str, ...]) -> bool:
+    """client_id CIMD-клиента — https-URL его документа. Точное совпадение или префикс пути.
+
+    Префикс сравнивается только для «чистого» URL: иначе `https://good/prefix/../evil` или
+    userinfo/порт/query могли бы увести за пределы доверенного документа.
+    """
+    if not isinstance(azp, str):
+        return False
+    if any(azp == entry for entry in trusted if not entry.endswith("/")):
+        return True
+    try:
+        url = urlsplit(azp)
+        clean = (
+            url.scheme == "https"
+            and url.port is None  # ValueError на мусорном порту
+            and url.username is None
+            and not url.query
+            and not url.fragment
+            and "/." not in url.path
+            and "%2e" not in url.path.lower()  # url crate в Rauthy раскрывает %2e%2e в ".."
+        )
+    except ValueError:
+        return False
+    return clean and any(
+        entry.endswith("/") and azp.startswith(entry) and len(azp) > len(entry) for entry in trusted
+    )
 
 
 class OidcTokenVerifier:
@@ -32,8 +73,9 @@ class OidcTokenVerifier:
         self._userinfo_url: str | None = None
         self._lock = asyncio.Lock()
 
-    async def verify(self, raw: str) -> VerifiedClaims:
-        if not self._config.audience:
+    async def verify(self, raw: str, *, target: AuthTarget) -> VerifiedClaims:
+        audience = self._audience_for(target)
+        if not audience:
             raise AuthenticationError("Вход через IdP не настроен.")
         jwks = await self._jwks_client()
         try:
@@ -42,12 +84,17 @@ class OidcTokenVerifier:
                 raw,
                 key.key,
                 algorithms=ALLOWED_ALGORITHMS,
-                audience=self._config.audience,
+                audience=audience,
                 issuer=self._config.issuer,
                 options={"require": ["exp", "iss", "sub", "aud"]},
             )
         except jwt.PyJWTError as exc:
             raise AuthenticationError("Токен недействителен или истёк.") from exc
+
+        if not _issued_to(payload, self._config.audience):
+            # Принят только по ресурсу MCP — значит, клиент зарегистрировался сам (CIMD).
+            # Rauthy выдаёт таким код без экрана согласия, поэтому доверяем лишь известным хостам.
+            self._require_trusted_client(payload.get("azp"))
 
         if "email" not in payload and self._userinfo_url:
             payload = {**await asyncio.to_thread(self._fetch_userinfo, raw), **payload}
@@ -58,6 +105,17 @@ class OidcTokenVerifier:
             email_verified=bool(payload.get("email_verified", False)),
             name=payload.get("name") or payload.get("preferred_username"),
         )
+
+    def _audience_for(self, target: AuthTarget) -> list[str]:
+        """Наши client id годятся везде; ресурс MCP — только для /mcp (ADR 0012)."""
+        audience = list(self._config.audience)
+        if target is AuthTarget.MCP and self._config.mcp_resource:
+            audience.append(self._config.mcp_resource)
+        return audience
+
+    def _require_trusted_client(self, azp: object) -> None:
+        if not _is_trusted_client(azp, self._config.mcp_trusted_clients):
+            raise AuthenticationError("Этот клиент не может подключаться к MCP.")
 
     async def _jwks_client(self) -> PyJWKClient:
         async with self._lock:

@@ -22,6 +22,25 @@ class McpSettings(BaseModel):
     # Значения заголовка Host, с которых принимаются MCP-запросы (защита от DNS rebinding).
     # В проде сюда добавляется публичный домен.
     allowed_hosts: list[str] = ["localhost:*", "127.0.0.1:*"]
+    # Публичный адрес /mcp ровно так, как его вводят в коннектор (https://<API_HOST>/mcp).
+    # Включает OAuth для коннекторов: метаданные ресурса (RFC 9728) и токены с этим aud (ADR 0012).
+    # Пусто — выключено, /mcp принимает только PAT и токены наших клиентов.
+    resource_url: str | None = None
+    # client_id (URL CIMD-документа) клиентов, которым можно в MCP; запись на "/" — префикс.
+    # Rauthy выдаёт код любому CIMD-клиенту без экрана согласия — чужих отсекаем здесь (ADR 0012).
+    # Документы проверены 2026-11-13, таблица — docs/specs/0007-claude-connector-oauth/spec.md.
+    trusted_clients: list[str] = [
+        "https://claude.ai/oauth/mcp-oauth-client-metadata",  # Claude: веб, desktop, мобильный
+        "https://claude.ai/oauth/claude-code-client-metadata",
+        "https://chatgpt.com/oauth/client.json",
+        "https://chatgpt.com/oauth/codex/client.json",
+        "https://vscode.dev/oauth/client-metadata.json",  # VS Code и Copilot в нём
+        "https://github.com/copilot/cli/client-metadata.json",
+        "https://cursor.com/oauth/mcp-client.json",
+        "https://zed.dev/oauth/client-metadata.json",
+        "https://antigravity.google/oauth/client-metadata.json",
+        "https://accountlinking.google.com/clientidmetadata/",  # Gemini custom connected apps
+    ]
 
 
 class AuthSettings(BaseModel):

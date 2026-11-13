@@ -16,6 +16,13 @@ class AuthMethod(StrEnum):
     SESSION = "session"  # JWT от IdP
 
 
+class AuthTarget(StrEnum):
+    """Куда пришёл запрос. От этого зависит, какие `aud` у JWT допустимы (ADR 0012)."""
+
+    API = "api"  # REST /api/v1
+    MCP = "mcp"  # /mcp
+
+
 @dataclass(frozen=True, kw_only=True)
 class Identity:
     """Кто выполняет запрос и с какими правами."""

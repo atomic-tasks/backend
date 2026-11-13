@@ -109,3 +109,34 @@ docker compose logs rauthy | grep -i -A2 password   # пароль админи�
 `python -c "import jwt,sys;print(jwt.decode(sys.argv[1],options={'verify_signature':False}))" <token>`):
 `aud` должен быть в `AUTH__AUDIENCE`, `iss` — равен `AUTH__ISSUER`. Если 403 «Регистрация закрыта» —
 email не в allowlist или не подтверждён.
+
+## 7. MCP через OAuth (спека 0007)
+
+Коннекторы MCP получают токен у Rauthy сами: регистрация через CIMD (ephemeral clients), токен привязан
+к ресурсу `http://localhost:8000/mcp` (ADR 0012). Локально это проверяется Claude Code: его документ клиента
+(`https://claude.ai/oauth/claude-code-client-metadata`) публичный и разрешает redirect на `localhost`.
+Приложение Claude (веб, телефон) до локального API не достучится — его проверяем только на проде.
+
+1. В `.env` — `MCP__RESOURCE_URL=http://localhost:8000/mcp` (как в `.env.example`), в
+   `docker/rauthy/config.toml` — `[ephemeral_clients]` с тем же адресом в `allowed_resources`.
+2. `docker compose up -d --build api rauthy`, проверить метаданные:
+
+   ```bash
+   curl -s http://localhost:8000/.well-known/oauth-protected-resource/mcp
+   curl -si -X POST http://localhost:8000/mcp | grep -i www-authenticate   # resource_metadata="…"
+   ```
+
+3. Подключить без токена и войти:
+
+   ```bash
+   claude mcp add --transport http atomic-local http://localhost:8000/mcp
+   ```
+
+   В Claude Code: `/mcp` → `atomic-local` → Authenticate → вход через Google в Rauthy.
+   Если Rauthy отвечает `400 Invalid redirect uri` — у контейнера Rauthy нет `RFC_8252_ENABLE=true`
+   (`compose.yaml`): Claude Code слушает callback на случайном порту, а в его документе адрес без порта.
+4. Агент вызывает `browse_folder` и видит ваше дерево. В админке Rauthy в логах — ephemeral-клиент `claude.ai`.
+
+Если `/mcp` отвечает 401 «Токен недействителен» — декодируйте токен (см. п. 6): в `aud` должен быть
+`http://localhost:8000/mcp`. Если его нет, Rauthy не принял `resource` — смотрите `docker compose logs rauthy`
+(`invalid_target`).
