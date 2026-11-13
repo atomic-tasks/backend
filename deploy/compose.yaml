@@ -96,6 +96,8 @@ services:
       MCP__ALLOWED_HOSTS: '["${API_HOST:?}"]'
       # Ровно тот адрес, что вводится в коннектор Claude; совпадает с ресурсом в Rauthy
       MCP__RESOURCE_URL: https://${API_HOST}/mcp
+      # Клиенты, заведённые в Rauthy вручную, если CIMD-документ с сервера недоступен (спека 0007)
+      MCP__EXTRA_TRUSTED_CLIENTS: ${MCP__EXTRA_TRUSTED_CLIENTS:-[]}
       # uvicorn --proxy-headers доверяет X-Forwarded-* только от Traefik
       FORWARDED_ALLOW_IPS: ${TRAEFIK_SUBNET}
     networks: [internal, traefik]
