@@ -130,12 +130,16 @@ async def test_no_audience_configured_means_idp_login_disabled(idp: str) -> None
 
 
 MCP_RESOURCE = "https://atomic.test/mcp"
-CLAUDE_CLIENT = "https://claude.ai/oauth/some-client"
+CLAUDE_CLIENT = "https://claude.ai/oauth/mcp-oauth-client-metadata"
+COPILOT_CLIENT = "https://github.com/copilot/cli/client-metadata.json"
+GEMINI_PREFIX = "https://accountlinking.google.com/clientidmetadata/"
 
 
 def _mcp_verifier(idp: str) -> OidcTokenVerifier:
     return _verifier(
-        idp, mcp_resource=MCP_RESOURCE, mcp_trusted_client_hosts=frozenset({"claude.ai"})
+        idp,
+        mcp_resource=MCP_RESOURCE,
+        mcp_trusted_clients=(CLAUDE_CLIENT, COPILOT_CLIENT, GEMINI_PREFIX),
     )
 
 
@@ -154,17 +158,32 @@ async def test_mcp_resource_token_works_only_on_mcp(idp: str) -> None:
         await verifier.verify(token, target=AuthTarget.API)
 
 
+@pytest.mark.parametrize("client_id", [COPILOT_CLIENT, f"{GEMINI_PREFIX}abc123"])
+async def test_trusted_client_by_exact_id_or_prefix(idp: str, client_id: str) -> None:
+    claims = await _mcp_verifier(idp).verify(
+        _connector_token(idp, client_id), target=AuthTarget.MCP
+    )
+    assert claims.subject == "user-1"
+
+
 @pytest.mark.parametrize(
     "client_id",
     [
         "https://evil.example/cimd.json",  # чужой CIMD-документ: Rauthy выдал код без согласия
-        "https://claude.ai.evil.example/cimd.json",
-        "https://claude.ai@evil.example/cimd.json",
-        "https://claude.ai:8443/cimd.json",
-        "https://claude.ai:bad/cimd.json",
-        "http://claude.ai/cimd.json",
+        "https://github.com/attacker/repo/cimd.json",  # тот же хост, что у Copilot CLI
+        "https://claude.ai/oauth/other",  # доверенный хост, но не тот документ
+        f"{CLAUDE_CLIENT}/",
+        GEMINI_PREFIX,  # сам префикс — не документ
+        f"{GEMINI_PREFIX}../../evil",
+        f"{GEMINI_PREFIX}%2e%2e/evil",
+        f"{GEMINI_PREFIX}x?next=evil",
+        f"{GEMINI_PREFIX}x#frag",
+        "https://accountlinking.google.com@evil.example/clientidmetadata/x",
+        "https://accountlinking.google.com:8443/clientidmetadata/x",
+        "https://accountlinking.google.com:bad/clientidmetadata/x",
+        "http://accountlinking.google.com/clientidmetadata/x",
         None,  # azp нет
-        ["https://claude.ai/x"],  # не строка
+        [CLAUDE_CLIENT],  # не строка
     ],
 )
 async def test_mcp_resource_token_from_untrusted_client_is_rejected(

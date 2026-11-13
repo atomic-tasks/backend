@@ -27,8 +27,8 @@ class OidcConfig:
     internal_url: str | None = None
     # Публичный адрес ресурса MCP (RFC 8707). Токен с таким aud принимается только на /mcp.
     mcp_resource: str | None = None
-    # Хосты документов CIMD-клиентов, которым можно выдавать доступ к MCP (ADR 0012).
-    mcp_trusted_client_hosts: frozenset[str] = frozenset()
+    # client_id CIMD-клиентов, которым можно в MCP; запись на "/" — префикс (ADR 0012).
+    mcp_trusted_clients: tuple[str, ...] = ()
 
 
 def _issued_to(payload: dict[str, Any], client_ids: list[str]) -> bool:
@@ -36,6 +36,34 @@ def _issued_to(payload: dict[str, Any], client_ids: list[str]) -> bool:
     aud = payload["aud"]
     values = [aud] if isinstance(aud, str) else aud
     return any(value in client_ids for value in values)
+
+
+def _is_trusted_client(azp: object, trusted: tuple[str, ...]) -> bool:
+    """client_id CIMD-клиента — https-URL его документа. Точное совпадение или префикс пути.
+
+    Префикс сравнивается только для «чистого» URL: иначе `https://good/prefix/../evil` или
+    userinfo/порт/query могли бы увести за пределы доверенного документа.
+    """
+    if not isinstance(azp, str):
+        return False
+    if any(azp == entry for entry in trusted if not entry.endswith("/")):
+        return True
+    try:
+        url = urlsplit(azp)
+        clean = (
+            url.scheme == "https"
+            and url.port is None  # ValueError на мусорном порту
+            and url.username is None
+            and not url.query
+            and not url.fragment
+            and "/." not in url.path
+            and "%2e" not in url.path.lower()  # url crate в Rauthy раскрывает %2e%2e в ".."
+        )
+    except ValueError:
+        return False
+    return clean and any(
+        entry.endswith("/") and azp.startswith(entry) and len(azp) > len(entry) for entry in trusted
+    )
 
 
 class OidcTokenVerifier:
@@ -86,19 +114,7 @@ class OidcTokenVerifier:
         return audience
 
     def _require_trusted_client(self, azp: object) -> None:
-        """client_id CIMD-клиента — https-URL его документа; доверяем только хосту из настройки."""
-        try:
-            url = urlsplit(azp) if isinstance(azp, str) else None
-            trusted = (
-                url is not None
-                and url.scheme == "https"
-                and url.port is None  # ValueError на мусорном порту
-                and url.username is None
-                and (url.hostname or "") in self._config.mcp_trusted_client_hosts
-            )
-        except ValueError:
-            trusted = False
-        if not trusted:
+        if not _is_trusted_client(azp, self._config.mcp_trusted_clients):
             raise AuthenticationError("Этот клиент не может подключаться к MCP.")
 
     async def _jwks_client(self) -> PyJWKClient:

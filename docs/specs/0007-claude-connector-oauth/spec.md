@@ -37,8 +37,28 @@ MCP Authorization (ADR 0009). Сейчас `/mcp` понимает PAT и JWT о
   токен, выданный коннектору, нельзя переиграть против REST.
 - **Только доверенные клиенты.** Rauthy выдаёт код любому CIMD-клиенту без экрана согласия, если у пользователя
   есть сессия (проверено, см. «Открытые вопросы»). Поэтому токен, принятый по ресурсу MCP (без наших client id
-  в `aud`), бэкенд принимает, только если `azp` — `https`-адрес без порта на хосте из `MCP__TRUSTED_CLIENT_HOSTS`
-  (по умолчанию `claude.ai`, `claude.com`). Иначе — `401`.
+  в `aud`), бэкенд принимает, только если подписанный `azp` есть в `MCP__TRUSTED_CLIENTS`: точный `client_id`
+  или префикс пути, если запись оканчивается на `/`. Иначе — `401`. Доверие к целому хосту не годится:
+  на `github.com` документ CIMD может выложить кто угодно.
+- **Поддерживаемые клиенты** (по умолчанию в `MCP__TRUSTED_CLIENTS`; документы проверены 2026-11-13 — отдаются
+  по HTTPS, `client_id` совпадает с адресом, redirect — только домен вендора или loopback):
+
+  | Клиент | `client_id` |
+  |---|---|
+  | Claude (веб, desktop, мобильный) | `https://claude.ai/oauth/mcp-oauth-client-metadata` |
+  | Claude Code | `https://claude.ai/oauth/claude-code-client-metadata` |
+  | ChatGPT (apps и connectors) | `https://chatgpt.com/oauth/client.json` |
+  | OpenAI Codex | `https://chatgpt.com/oauth/codex/client.json` |
+  | VS Code, Copilot в VS Code | `https://vscode.dev/oauth/client-metadata.json` |
+  | GitHub Copilot CLI | `https://github.com/copilot/cli/client-metadata.json` |
+  | Cursor (CIMD у них в раскатке, иначе DCR) | `https://cursor.com/oauth/mcp-client.json` |
+  | Zed | `https://zed.dev/oauth/client-metadata.json` |
+  | Google Antigravity | `https://antigravity.google/oauth/client-metadata.json` |
+  | Gemini (custom connected apps; префикс, не проверено вживую) | `https://accountlinking.google.com/clientidmetadata/` |
+
+  Не подключатся: клиенты только с DCR — Gemini CLI, Mistral Vibe (Le Chat), Kimi CLI, Copilot Studio.
+  У приложения Kimi (kimi.com) своих MCP-коннекторов нет. DCR не включаем: у DCR-клиента случайный `client_id`,
+  довериться ему нечем, а код Rauthy выдаёт без согласия (ADR 0012).
 - **Права.** Токен коннектора даёт права `write`, как вход через Swagger (тулы создают и меняют задачи).
 - **Доступ к данным** по-прежнему ограничивает allowlist email в бэкенде; email берётся из токена или userinfo,
   поэтому в метаданных ресурса объявляются scopes `openid email profile`.
@@ -81,7 +101,7 @@ MCP Authorization (ADR 0009). Сейчас `/mcp` понимает PAT и JWT о
   код → токен с `aud` = [URL клиента, ресурс MCP] и `azp` = URL клиента → `/mcp` `tools/list` = 200,
   `/api/v1/me` = 401. Злоумышленнику хватит своего CIMD-документа и одного клика жертвы. Ограничить
   ephemeral-клиентов по домену в Rauthy нельзя (настроек `EPHEMERAL_CLIENTS_*` для этого нет), поэтому бэкенд
-  проверяет `azp` по `MCP__TRUSTED_CLIENT_HOSTS` (ADR 0012).
+  проверяет `azp` по `MCP__TRUSTED_CLIENTS` (ADR 0012).
 - **`resource` на шаге authorize не отклоняется.** Запрос с чужим `resource` (`https://evil.example/mcp`)
   тоже открывает страницу входа. Отклоняет ли Rauthy его на `/token` и попадает ли разрешённый `resource`
   в `aud` — проверить на сквозном шаге после входа. Наша защита от этого не зависит: `/mcp` сам требует
