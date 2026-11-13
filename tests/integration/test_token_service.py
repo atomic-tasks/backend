@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from dishka import AsyncContainer, Provider, Scope, provide
 
+from atomic_tasks.application.dto import AuthTarget
 from atomic_tasks.application.errors import AuthenticationError, NotFoundError
 from atomic_tasks.application.ports.clock import Clock
 from atomic_tasks.application.services.auth_service import AuthService
@@ -61,7 +62,9 @@ async def _token(container: AsyncContainer, user_id: uuid.UUID, ttl: int | None 
 
 async def _auth(container: AsyncContainer, raw: str) -> uuid.UUID:
     async with container() as c:
-        return (await (await c.get(AuthService)).authenticate(f"Bearer {raw}")).user_id
+        return (
+            await (await c.get(AuthService)).authenticate(f"Bearer {raw}", target=AuthTarget.API)
+        ).user_id
 
 
 async def test_token_authenticates_until_revoked(container: AsyncContainer) -> None:
@@ -93,7 +96,7 @@ async def test_unknown_and_malformed_tokens_are_rejected(container: AsyncContain
             await _auth(container, bad)
     async with container() as c:
         with pytest.raises(AuthenticationError):
-            await (await c.get(AuthService)).authenticate(None)
+            await (await c.get(AuthService)).authenticate(None, target=AuthTarget.API)
 
 
 async def test_disabled_user_cannot_authenticate(container: AsyncContainer) -> None:

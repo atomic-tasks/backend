@@ -85,6 +85,13 @@ Change visibility), иначе pull упадёт с `unauthorized`.
   claude mcp add --transport http atomic-tasks https://<API_HOST>/mcp --header "Authorization: Bearer at_..."
   ```
 
+- Метаданные ресурса для MCP-коннекторов (спека 0007):
+  `curl https://<API_HOST>/.well-known/oauth-protected-resource/mcp` → `resource` = `https://<API_HOST>/mcp`,
+  `authorization_servers` = `https://<AUTH_HOST>/auth/v1/`.
+- Коннектор в приложении Claude: Settings → Connectors → Add custom connector → URL `https://<API_HOST>/mcp`,
+  без client id и secret → Connect → вход через Google. Агент видит дерево (`browse_folder`).
+  Подключение без токена из Claude Code — так же через OAuth:
+  `claude mcp add --transport http atomic-tasks https://<API_HOST>/mcp`, затем `/mcp` → Authenticate.
 - Тело больше 1 МиБ отклоняется прокси:
   `head -c 2000000 /dev/zero | curl -s -o /dev/null -w '%{http_code}\n' -X POST --data-binary @- https://<API_HOST>/api/v1/tasks`
   → `413`.

@@ -12,6 +12,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from jwt.algorithms import OKPAlgorithm
 
+from atomic_tasks.application.dto import AuthTarget
 from atomic_tasks.application.errors import AuthenticationError
 from atomic_tasks.infrastructure.auth.oidc import OidcConfig, OidcTokenVerifier
 
@@ -80,7 +81,7 @@ def _verifier(idp: str, **overrides: Any) -> OidcTokenVerifier:
 
 
 async def test_valid_token(idp: str) -> None:
-    claims = await _verifier(idp).verify(_token(idp))
+    claims = await _verifier(idp).verify(_token(idp), target=AuthTarget.API)
     assert (claims.issuer, claims.subject, claims.email) == (
         f"{idp}/auth/v1",
         "user-1",
@@ -100,7 +101,7 @@ async def test_valid_token(idp: str) -> None:
 )
 async def test_rejected_tokens(idp: str, overrides: dict[str, Any]) -> None:
     with pytest.raises(AuthenticationError):
-        await _verifier(idp).verify(_token(idp, **overrides))
+        await _verifier(idp).verify(_token(idp, **overrides), target=AuthTarget.API)
 
 
 async def test_symmetric_algorithm_is_rejected(idp: str) -> None:
@@ -111,25 +112,54 @@ async def test_symmetric_algorithm_is_rejected(idp: str) -> None:
         headers={"kid": "k1"},
     )
     with pytest.raises(AuthenticationError):
-        await _verifier(idp).verify(forged)
+        await _verifier(idp).verify(forged, target=AuthTarget.API)
 
 
 async def test_issuer_is_compared_exactly_including_trailing_slash(idp: str) -> None:
     rauthy_style = await _verifier(idp, issuer=f"{idp}/auth/v1/").verify(
-        _token(idp, iss=f"{idp}/auth/v1/"),
+        _token(idp, iss=f"{idp}/auth/v1/"), target=AuthTarget.API
     )
     assert rauthy_style.issuer == f"{idp}/auth/v1/"
     with pytest.raises(AuthenticationError):
-        await _verifier(idp).verify(_token(idp, iss=f"{idp}/auth/v1/"))
+        await _verifier(idp).verify(_token(idp, iss=f"{idp}/auth/v1/"), target=AuthTarget.API)
 
 
 async def test_no_audience_configured_means_idp_login_disabled(idp: str) -> None:
     with pytest.raises(AuthenticationError):
-        await _verifier(idp, audience=[]).verify(_token(idp))
+        await _verifier(idp, audience=[]).verify(_token(idp), target=AuthTarget.API)
+
+
+MCP_RESOURCE = "https://atomic.test/mcp"
+
+
+async def test_mcp_resource_token_works_only_on_mcp(idp: str) -> None:
+    # Токен коннектора (aud = ресурс MCP, client_id неизвестен) нельзя переиграть против REST.
+    token = _token(idp, aud=["https://claude.ai/oauth/some-client", MCP_RESOURCE])
+    verifier = _verifier(idp, mcp_resource=MCP_RESOURCE)
+    claims = await verifier.verify(token, target=AuthTarget.MCP)
+    assert claims.subject == "user-1"
+    with pytest.raises(AuthenticationError):
+        await verifier.verify(token, target=AuthTarget.API)
+
+
+async def test_mcp_resource_token_rejected_when_resource_not_configured(idp: str) -> None:
+    token = _token(idp, aud=MCP_RESOURCE)
+    for target in AuthTarget:
+        with pytest.raises(AuthenticationError):
+            await _verifier(idp).verify(token, target=target)
+
+
+async def test_our_client_token_still_works_on_mcp(idp: str) -> None:
+    claims = await _verifier(idp, mcp_resource=MCP_RESOURCE).verify(
+        _token(idp), target=AuthTarget.MCP
+    )
+    assert claims.subject == "user-1"
 
 
 async def test_email_from_userinfo_when_not_in_token(idp: str) -> None:
-    claims = await _verifier(idp).verify(_token(idp, email=None, email_verified=None))
+    claims = await _verifier(idp).verify(
+        _token(idp, email=None, email_verified=None), target=AuthTarget.API
+    )
     assert claims.email == "u@example.com"
     assert claims.email_verified
 
@@ -143,6 +173,6 @@ async def test_internal_url_is_used_for_server_side_requests(idp: str) -> None:
     with pytest.raises(
         AuthenticationError
     ):  # discovery отдаёт issuer idp, а не public — iss не совпадёт
-        await verifier.verify(_token(idp))
-    claims = await verifier.verify(_token(idp, iss=f"{public}/auth/v1"))
+        await verifier.verify(_token(idp), target=AuthTarget.API)
+    claims = await verifier.verify(_token(idp, iss=f"{public}/auth/v1"), target=AuthTarget.API)
     assert claims.subject == "user-1"

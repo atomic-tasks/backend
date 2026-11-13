@@ -9,7 +9,7 @@ from fastapi.security import (
     OAuth2AuthorizationCodeBearer,
 )
 
-from atomic_tasks.application.dto import Identity
+from atomic_tasks.application.dto import AuthTarget, Identity
 from atomic_tasks.application.services.auth_service import AuthService
 
 _bearer = HTTPBearer(
@@ -42,7 +42,9 @@ def make_authenticate(issuer: str) -> Callable[..., Awaitable[Identity]]:
             return cached
         container: AsyncContainer = request.state.dishka_container
         auth = await container.get(AuthService)
-        identity = await auth.authenticate(request.headers.get("authorization"))
+        identity = await auth.authenticate(
+            request.headers.get("authorization"), target=AuthTarget.API
+        )
         request.state.identity = identity
         return identity
 

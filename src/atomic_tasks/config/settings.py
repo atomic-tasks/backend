@@ -22,6 +22,10 @@ class McpSettings(BaseModel):
     # Значения заголовка Host, с которых принимаются MCP-запросы (защита от DNS rebinding).
     # В проде сюда добавляется публичный домен.
     allowed_hosts: list[str] = ["localhost:*", "127.0.0.1:*"]
+    # Публичный адрес /mcp ровно так, как его вводят в коннектор (https://<API_HOST>/mcp).
+    # Включает OAuth для коннекторов: метаданные ресурса (RFC 9728) и токены с этим aud (ADR 0012).
+    # Пусто — выключено, /mcp принимает только PAT и токены наших клиентов.
+    resource_url: str | None = None
 
 
 class AuthSettings(BaseModel):

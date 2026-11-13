@@ -9,6 +9,7 @@ from typing import Any
 import jwt
 from jwt import PyJWKClient
 
+from atomic_tasks.application.dto import AuthTarget
 from atomic_tasks.application.errors import AuthenticationError
 from atomic_tasks.application.ports.oidc import VerifiedClaims
 
@@ -23,6 +24,8 @@ class OidcConfig:
     audience: list[str]
     # Адрес IdP изнутри Docker-сети, если публичный (issuer) оттуда недоступен.
     internal_url: str | None = None
+    # Публичный адрес ресурса MCP (RFC 8707). Токен с таким aud принимается только на /mcp.
+    mcp_resource: str | None = None
 
 
 class OidcTokenVerifier:
@@ -32,8 +35,9 @@ class OidcTokenVerifier:
         self._userinfo_url: str | None = None
         self._lock = asyncio.Lock()
 
-    async def verify(self, raw: str) -> VerifiedClaims:
-        if not self._config.audience:
+    async def verify(self, raw: str, *, target: AuthTarget) -> VerifiedClaims:
+        audience = self._audience_for(target)
+        if not audience:
             raise AuthenticationError("Вход через IdP не настроен.")
         jwks = await self._jwks_client()
         try:
@@ -42,7 +46,7 @@ class OidcTokenVerifier:
                 raw,
                 key.key,
                 algorithms=ALLOWED_ALGORITHMS,
-                audience=self._config.audience,
+                audience=audience,
                 issuer=self._config.issuer,
                 options={"require": ["exp", "iss", "sub", "aud"]},
             )
@@ -58,6 +62,13 @@ class OidcTokenVerifier:
             email_verified=bool(payload.get("email_verified", False)),
             name=payload.get("name") or payload.get("preferred_username"),
         )
+
+    def _audience_for(self, target: AuthTarget) -> list[str]:
+        """Наши client id годятся везде; ресурс MCP — только для /mcp (ADR 0012)."""
+        audience = list(self._config.audience)
+        if target is AuthTarget.MCP and self._config.mcp_resource:
+            audience.append(self._config.mcp_resource)
+        return audience
 
     async def _jwks_client(self) -> PyJWKClient:
         async with self._lock:

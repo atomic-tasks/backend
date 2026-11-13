@@ -109,12 +109,13 @@ class AuthProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def token_verifier(self, settings: AuthSettings) -> TokenVerifier:
+    def token_verifier(self, settings: Settings) -> TokenVerifier:
         return OidcTokenVerifier(
             OidcConfig(
-                issuer=settings.issuer,
-                audience=settings.audience,
-                internal_url=settings.internal_url,
+                issuer=settings.auth.issuer,
+                audience=settings.auth.audience,
+                internal_url=settings.auth.internal_url,
+                mcp_resource=settings.mcp.resource_url,
             ),
         )
 
