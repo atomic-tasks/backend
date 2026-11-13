@@ -116,7 +116,10 @@ class AuthProvider(Provider):
                 audience=settings.auth.audience,
                 internal_url=settings.auth.internal_url,
                 mcp_resource=settings.mcp.resource_url,
-                mcp_trusted_clients=tuple(settings.mcp.trusted_clients),
+                mcp_trusted_clients=(
+                    *settings.mcp.trusted_clients,
+                    *settings.mcp.extra_trusted_clients,
+                ),
             ),
         )
 

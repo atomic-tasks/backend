@@ -90,6 +90,18 @@ Change visibility), иначе pull упадёт с `unauthorized`.
   `authorization_servers` = `https://<AUTH_HOST>/auth/v1/`.
 - Коннектор в приложении Claude: Settings → Connectors → Add custom connector → URL `https://<API_HOST>/mcp`,
   без client id и secret → Connect → вход через Google. Агент видит дерево (`browse_folder`).
+  Если Claude пишет «Сервер не поддерживает автоматическую регистрацию клиентов», а в
+  `docker compose logs rauthy` — `Cannot fetch ephemeral client document … 403 Forbidden`, значит `claude.ai`
+  не отдаёт документ клиента IP сервера (блокировка по региону). Тогда клиент заводится вручную:
+  1. Админка Rauthy → Clients → добавить: Client ID `claude-connector`, **public** (без секрета),
+     redirect `https://claude.ai/api/mcp/auth_callback`, flows `authorization_code` и `refresh_token`,
+     PKCE `S256`, scopes `openid email profile`, Allowed resources `https://<API_HOST>/mcp`.
+  2. В `.env` на сервере: `MCP__EXTRA_TRUSTED_CLIENTS=["claude-connector"]` (JSON в одну строку),
+     затем `export VERSION=<текущая версия>` и `docker compose up -d api`.
+  3. В Claude, в настройках коннектора: «Клиент OAuth» → «Использовать свой OAuth-клиент» → `claude-connector`,
+     секрет пустой.
+
+  Для других приложений (ChatGPT и т.п.) — так же, отдельный клиент со своим redirect URI.
   Подключение без токена из Claude Code — так же через OAuth:
   `claude mcp add --transport http atomic-tasks https://<API_HOST>/mcp`, затем `/mcp` → Authenticate.
 - Тело больше 1 МиБ отклоняется прокси:

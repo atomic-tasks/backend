@@ -41,6 +41,9 @@ class McpSettings(BaseModel):
         "https://antigravity.google/oauth/client-metadata.json",
         "https://accountlinking.google.com/clientidmetadata/",  # Gemini custom connected apps
     ]
+    # Дополнительно к trusted_clients — client id, заведённые в Rauthy вручную (например
+    # claude-connector), когда IdP не может скачать CIMD-документ (403 по региону).
+    extra_trusted_clients: list[str] = []
 
 
 class AuthSettings(BaseModel):
