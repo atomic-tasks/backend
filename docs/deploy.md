@@ -3,8 +3,9 @@
 Runbook прода (спека 0006, ADR 0011): VPS с уже работающим Traefik, один compose-стек в `/opt/atomic-tasks`,
 выкатка из GitHub Actions по тегу с подтверждением. Файлы стека — `deploy/`.
 
-Обозначения ниже: `<API_HOST>` — адрес API (например, `atomic.example.com`), `<AUTH_HOST>` — Rauthy
-(`auth.example.com`), `<server>` — SSH-адрес VPS.
+Обозначения ниже: `<API_HOST>` — адрес бэкенда для машинных клиентов (например, `api.atomic.example.com`),
+`<WEB_HOST>` — сайт (`atomic.example.com`), его `/api/` Traefik отдаёт тому же бэкенду (спека 0008),
+`<AUTH_HOST>` — Rauthy (`auth.example.com`), `<server>` — SSH-адрес VPS.
 
 ## 1. Что должно быть на сервере
 
@@ -19,7 +20,7 @@ Runbook прода (спека 0006, ADR 0011): VPS с уже работающи
 
   Имена entrypoint и certresolver — из статического конфига Traefik (`entryPoints`, `certificatesResolvers`).
   Если у Traefik `exposedByDefault=false`, это нормально: наши сервисы ставят `traefik.enable=true`.
-- DNS: записи `A` (и `AAAA`, если есть IPv6) для `<API_HOST>` и `<AUTH_HOST>` на IP сервера.
+- DNS: записи `A` (и `AAAA`, если есть IPv6) для `<API_HOST>`, `<WEB_HOST>` и `<AUTH_HOST>` на IP сервера.
 
 ## 2. Пользователь и каталоги (один раз, под root)
 
@@ -107,6 +108,8 @@ Change visibility), иначе pull упадёт с `unauthorized`.
 - Тело больше 1 МиБ отклоняется прокси:
   `head -c 2000000 /dev/zero | curl -s -o /dev/null -w '%{http_code}\n' -X POST --data-binary @- https://<API_HOST>/api/v1/tasks`
   → `413`.
+- Хост сайта: `curl -s -o /dev/null -w '%{http_code}\n' https://<WEB_HOST>/api/v1/me` → `401` (ответ бэкенда);
+  `https://<WEB_HOST>/` → `404` от Traefik, пока сайт не выкачен.
 - Память: `docker stats --no-stream` — записать в «Открытые вопросы» спеки 0006.
 
 ## 6. Выкатка из GitHub Actions
@@ -208,7 +211,46 @@ done
 docker compose up -d
 ```
 
-## 9. Обслуживание
+## 9. Переезд бэкенда на отдельный хост (спека 0008, один раз)
+
+До спеки 0008 бэкенд жил на `atomic.<domain>`. Теперь там сайт (`WEB_HOST`), а бэкенд — на `api.atomic.<domain>`
+(`API_HOST`). Адрес ресурса MCP, разрешённые хосты и ресурс CIMD-клиентов в Rauthy собираются из `API_HOST`
+в compose сами; остальное — руками, строго по порядку. Старый адрес `/mcp` после переезда не работает.
+
+1. **DNS.** Запись `A` (и `AAAA`) для нового `<API_HOST>`. Дождаться, пока резолвится с сервера:
+   `dig +short <API_HOST>`. Сертификат Traefik выпустит при первом запросе.
+2. **`.env` на сервере** — до выкатки: без `WEB_HOST` новая версия не стартует (deploy остановится
+   до миграций, API останется прежним).
+
+   ```bash
+   cd /opt/atomic-tasks && cp .env .env.bak
+   # API_HOST=<новый api.atomic.<domain>>
+   # WEB_HOST=<прежний atomic.<domain>>
+   ```
+
+3. **Rauthy** (админка → Clients):
+   - `atomic-tasks-swagger`: redirect `https://<API_HOST>/docs/oauth2-redirect`, allowed origin `https://<API_HOST>`;
+   - клиенты из `MCP__EXTRA_TRUSTED_CLIENTS` (например `claude-connector`), если есть: Allowed resources
+     `https://<API_HOST>/mcp`.
+4. **GitHub** — переменная environment `production` (её читают URL environment и проверка версии в `release.yml`):
+
+   ```bash
+   gh variable set API_HOST --env production --body <API_HOST>
+   ```
+
+5. **Выкатка** — тег релиза со спекой 0008 (п. 6) или повтор текущей версии (п. 7). Проверка:
+   - `https://<API_HOST>/health`, `/openapi.json`, `/.well-known/oauth-protected-resource/mcp`
+     (`resource` = `https://<API_HOST>/mcp`);
+   - `https://<API_HOST>/docs` → Authorize → вход;
+   - хост сайта — как в п. 5.
+6. **Коннекторы MCP**: в Claude удалить старый коннектор и добавить `https://<API_HOST>/mcp` (п. 5);
+   в Claude Code — `claude mcp remove atomic-tasks` и `claude mcp add` с новым адресом.
+
+Откат: `cp .env.bak .env`, вернуть redirect и ресурсы в Rauthy и переменную в GitHub, затем
+`export VERSION=$(cat .deployed-version) && docker compose up -d`. Если откатывается и версия — п. 7:
+в старом compose нет `WEB_HOST`, лишняя переменная ему не мешает.
+
+## 10. Обслуживание
 
 Любая команда compose в `/opt/atomic-tasks` — с `export VERSION=$(cat .deployed-version)`: без версии
 compose отказывается читать файл, чтобы случайно не поднять API с другим образом.

@@ -137,7 +137,9 @@ IdP — Rauthy в том же compose (ADR 0009). Бэкенд только пр
 VPS с уже работающим Traefik (ADR 0011). Runbook — `docs/deploy.md`, файлы стека — `deploy/`.
 
 - Один compose-стек: Postgres, Rauthy, migrate, API. API — на `API_HOST`, Rauthy — на `AUTH_HOST`
-  (отдельный хост IdP: его можно вынести, не меняя issuer). Наружу — только через Traefik, порты на хост
+  (отдельный хост IdP: его можно вынести, не меняя issuer). Сайт — на `WEB_HOST` (деплоится из репозитория
+  `web`), его `/api/` Traefik отдаёт тому же API: для браузера один origin, cookie-сессия без CORS (ADR 0013).
+  Машинные клиенты (MCP, бот, CLI) ходят на `API_HOST`. Наружу — только через Traefik, порты на хост
   не публикуются, Postgres только во внутренней сети. Лимит тела запроса к API — 1 МиБ на прокси.
 - Всё о сервере — в `.env` на сервере и в GitHub environment `production`; в репозитории только шаблоны.
 - `release.yml` кладёт в релиз `deploy.tar.gz` (конфиг стека этой версии), затем джоба `deploy` с подтверждением
