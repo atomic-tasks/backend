@@ -111,6 +111,14 @@ services:
       # MCP отвечает JSON (json_response=True), буферизация стримы не ломает.
       traefik.http.middlewares.atomic-api-body-limit.buffering.maxRequestBodyBytes: "1048576"
       traefik.http.services.atomic-api.loadbalancer.server.port: "8000"
+      # Сайт живёт на WEB_HOST, его /api/ — сюда же: для браузера один origin, cookie без CORS (ADR 0013).
+      # Остальные пути WEB_HOST — роутеру сайта; наше правило длиннее, Traefik выбирает его первым.
+      # Слеш в префиксе обязателен: PathPrefix(`/api`) забрал бы и /apix сайта.
+      traefik.http.routers.atomic-web-api.rule: Host(`${WEB_HOST:?}`) && PathPrefix(`/api/`)
+      traefik.http.routers.atomic-web-api.entrypoints: ${TRAEFIK_ENTRYPOINT}
+      traefik.http.routers.atomic-web-api.tls.certresolver: ${TRAEFIK_CERTRESOLVER}
+      traefik.http.routers.atomic-web-api.middlewares: atomic-api-body-limit
+      traefik.http.routers.atomic-web-api.service: atomic-api
     depends_on:
       postgres:
         condition: service_healthy
