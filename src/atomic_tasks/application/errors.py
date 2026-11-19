@@ -1,3 +1,5 @@
+from enum import StrEnum
+
 from atomic_tasks.domain.exceptions import DomainError
 
 
@@ -39,3 +41,17 @@ class BulkItemError(ApplicationError):
         super().__init__(f"{address}: {cause.message}")
         self.address = address
         self.cause = cause
+
+
+class LoginFailure(StrEnum):
+    """Почему не удался вход через браузер. Уходит в `/?login_error=<код>`, деталей наружу нет."""
+
+    ACCESS_DENIED = "access_denied"  # allowlist, пользователь отключён, отказ в IdP
+    EXPIRED = "expired"  # вход просрочен или уже завершён
+    FAILED = "failed"  # подделка state, ошибка IdP, недействительный id_token
+
+
+class LoginFailedError(ApplicationError):
+    def __init__(self, code: LoginFailure) -> None:
+        super().__init__("Вход не удался.")
+        self.code = code

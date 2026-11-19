@@ -7,7 +7,7 @@ from fastapi.routing import APIRoute
 from atomic_tasks.presentation.fastapi.auth import make_authenticate
 from atomic_tasks.presentation.fastapi.docs import add_docs
 from atomic_tasks.presentation.fastapi.errors import register_error_handlers
-from atomic_tasks.presentation.fastapi.routers import folders, health, me, tasks, tokens
+from atomic_tasks.presentation.fastapi.routers import auth, folders, health, me, tasks, tokens
 
 
 def _operation_id(route: APIRoute) -> str:
@@ -22,6 +22,7 @@ def create_fastapi_app(
     lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]],
     oidc_issuer: str,
     swagger_client_id: str,
+    web_origin: str | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="AtomicTasks API",
@@ -35,9 +36,13 @@ def create_fastapi_app(
     add_docs(app, swagger_client_id=swagger_client_id)
     register_error_handlers(app)
     app.include_router(health.router)
+    # Вход через браузер — вне аутентификации /api/v1: пользователя ещё нет
+    app.include_router(auth.make_router(web_origin))
 
     # Всё под /api/v1 требует аутентификации — доступ по умолчанию закрыт.
-    api_v1 = APIRouter(prefix="/api/v1", dependencies=[Depends(make_authenticate(oidc_issuer))])
+    api_v1 = APIRouter(
+        prefix="/api/v1", dependencies=[Depends(make_authenticate(oidc_issuer, web_origin))]
+    )
     api_v1.include_router(me.router)
     api_v1.include_router(tokens.router)
     api_v1.include_router(folders.router)

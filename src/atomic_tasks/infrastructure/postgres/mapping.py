@@ -3,12 +3,15 @@ from functools import cache
 from sqlalchemy.orm import relationship
 
 from atomic_tasks.domain.entities.api_token import ApiToken
+from atomic_tasks.domain.entities.browser_session import BrowserSession, LoginAttempt
 from atomic_tasks.domain.entities.folder import Folder
 from atomic_tasks.domain.entities.task import Task
 from atomic_tasks.domain.entities.user import User, UserIdentity
 from atomic_tasks.infrastructure.postgres.tables import (
     api_tokens,
+    browser_sessions,
     folders,
+    login_attempts,
     mapper_registry,
     tasks,
     user_identities,
@@ -40,6 +43,12 @@ def map_entities() -> None:
         api_tokens,
         properties={"_user": _depends_on(User)},
     )
+    mapper_registry.map_imperatively(
+        BrowserSession,
+        browser_sessions,
+        properties={"_user": _depends_on(User)},
+    )
+    mapper_registry.map_imperatively(LoginAttempt, login_attempts)
     mapper_registry.map_imperatively(Folder, folders, properties={"_owner": _depends_on(User)})
     mapper_registry.map_imperatively(
         Task,

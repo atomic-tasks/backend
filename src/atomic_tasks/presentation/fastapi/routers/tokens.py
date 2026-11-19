@@ -20,7 +20,7 @@ async def create_token(
     identity: CurrentIdentity,
     tokens: FromDishka[TokenService],
 ) -> CreatedTokenResponse:
-    identity.require_session()
+    identity.require_interactive()
     created = await tokens.create(
         user_id=identity.user_id,
         name=body.name,
@@ -36,7 +36,7 @@ async def create_token(
 async def list_tokens(
     identity: CurrentIdentity, tokens: FromDishka[TokenService]
 ) -> list[TokenResponse]:
-    identity.require_session()
+    identity.require_interactive()
     return [TokenResponse.from_info(info) for info in await tokens.list_for_user(identity.user_id)]
 
 
@@ -46,5 +46,5 @@ async def revoke_token(
     identity: CurrentIdentity,
     tokens: FromDishka[TokenService],
 ) -> None:
-    identity.require_session()
+    identity.require_interactive()
     await tokens.revoke(user_id=identity.user_id, token_id=token_id)

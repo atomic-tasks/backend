@@ -26,7 +26,7 @@
 |---|---|---|
 | `domain` | сущности `User`, `Folder`, `Task`; `Weight`, статусы, инварианты | ничего (stdlib) |
 | `application` | `FolderService`, `TaskService`, `TreeService`, `BulkService`; порты | domain |
-| `infrastructure` | `postgres/` (таблицы, репозитории, CTE-ридеры, миграции), `auth/` (JWT, PAT) | application, domain |
+| `infrastructure` | `postgres/` (таблицы, репозитории, CTE-ридеры, миграции), `auth/` (JWT, вход через браузер) | application, domain |
 | `presentation` | `fastapi/` (роутеры, схемы), `mcp/` (тулы) | application, domain |
 | `config` | настройки, провайдеры dishka, сборка приложения | всё |
 
@@ -46,6 +46,8 @@
 
 - `users`, `user_identities(user_id, issuer, subject)`, `api_tokens(user_id, prefix, token_hash, scope, ...)` —
   реализованы в спеке 0001
+- `browser_sessions(user_id, token_hash, last_seen_at, expires_at)`, `login_attempts(state_hash, code_verifier,
+  nonce, return_to, expires_at)` — спека 0008; просроченное удаляется при входе, без cron
 - `folders(id, owner_id, parent_id, title, description, weight, status, created_at, updated_at)` — спека 0002
 - `tasks(id, owner_id, folder_id, title, description, weight, status, created_at, updated_at)` — спека 0002
 
@@ -101,7 +103,8 @@
 
 ## Авторизация
 
-IdP — Rauthy в том же compose (ADR 0009). Бэкенд только проверяет токены.
+IdP — Rauthy в том же compose (ADR 0009). Бэкенд проверяет токены, а для браузера сам проходит вход
+и держит свою сессию.
 
 - **JWT от Rauthy** — web, mobile, Swagger `/docs`. Пользователь — по `(issuer, sub)`, создаётся при первом входе
   (если email в allowlist).
@@ -114,7 +117,18 @@ IdP — Rauthy в том же compose (ADR 0009). Бэкенд только пр
   CIMD-клиенту без экрана согласия, поэтому такой токен принимается, только если `azp` есть в
   `MCP__TRUSTED_CLIENTS` (точные `client_id` Claude, ChatGPT, VS Code и др.; список — спека 0007).
 
-Спеки: `docs/specs/0001-users-and-auth/`, `docs/specs/0007-claude-connector-oauth/`.
+- **Сессия браузера** (сайт на `WEB_HOST`) — ADR 0013, спека 0008. Бэкенд — конфиденциальный клиент Rauthy
+  (`atomic-tasks-web`, code + PKCE): `GET /api/v1/auth/login` → Rauthy → `GET /api/v1/auth/callback`, проверка
+  `id_token` (подпись, `iss`, `aud`, `nonce`), пользователь — по тем же правилам, что для JWT. Токены Rauthy
+  не хранятся; в httpOnly-cookie `__Host-at_session` — случайный секрет, в `browser_sessions` — его SHA-256.
+  Срок — 30 дней без активности, не больше 90 со входа. Данные входа (`state`, PKCE-verifier, `nonce`,
+  `return_to`) — строка `login_attempts` на 10 минут, читается вместе с удалением (повтор callback не пройдёт).
+  Cookie даёт те же права, что вход через IdP (в том числе управление PAT); Bearer важнее cookie;
+  `/mcp` cookie не принимает. CSRF: небезопасный метод с cookie требует `Origin` = `WEB__ORIGIN`
+  (проверка в `presentation/fastapi/auth.py`). Без `WEB__ORIGIN` вход выключен: `/api/v1/auth/*` → 404.
+
+Спеки: `docs/specs/0001-users-and-auth/`, `docs/specs/0007-claude-connector-oauth/`,
+`docs/specs/0008-browser-sessions/`.
 
 ## Клиенты
 

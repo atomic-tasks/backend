@@ -14,6 +14,7 @@ from atomic_tasks.domain.exceptions import InsufficientScopeError
 class AuthMethod(StrEnum):
     PAT = "pat"
     SESSION = "session"  # JWT от IdP
+    COOKIE = "cookie"  # сессия браузера (спека 0008)
 
 
 class AuthTarget(StrEnum):
@@ -35,12 +36,26 @@ class Identity:
         if not self.scope.allows(required):
             raise InsufficientScopeError(required)
 
-    def require_session(self) -> None:
-        """Только вход через IdP: утёкший PAT не должен выпускать и отзывать токены."""
-        if self.method is not AuthMethod.SESSION:
+    def require_interactive(self) -> None:
+        """Только вход через IdP (JWT или cookie): утёкший PAT не выпустит и не отзовёт токены."""
+        if self.method not in {AuthMethod.SESSION, AuthMethod.COOKIE}:
             raise PermissionDeniedError(
                 "Это действие доступно только после входа через браузер, не по токену."
             )
+
+
+@dataclass(frozen=True, kw_only=True)
+class LoginStart:
+    """Начало входа через браузер: куда отправить браузер и что положить в cookie входа."""
+
+    redirect_url: str
+    state: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class LoginResult:
+    session_secret: str  # в cookie сессии, больше никуда
+    return_to: str  # относительный путь, уже проверен
 
 
 @dataclass(frozen=True, kw_only=True)

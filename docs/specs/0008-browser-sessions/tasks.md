@@ -14,18 +14,18 @@
 
 **PR 2 — вход через браузер**
 
-- [ ] Домен: `BrowserSession`, `LoginAttempt`, генерация секретов и PKCE, сроки, `safe_return_to` —
+- [x] Домен: `BrowserSession`, `LoginAttempt`, генерация секретов и PKCE, сроки, `safe_return_to` —
       unit-тест на `return_to` (`//evil`, `/\evil`, `https://evil`, `/%2F/evil`, управляющие символы,
       пустое значение → `/`); mypy чистый
-- [ ] Таблицы, репозитории, миграция `0003_browser_sessions` — `alembic upgrade head` и `downgrade -1`
+- [x] Таблицы, репозитории, миграция `0003_browser_sessions` — `alembic upgrade head` и `downgrade -1`
       на чистом Postgres проходят
-- [ ] `OidcProvider` (общие discovery и JWKS) и `OidcCodeFlowClient`: authorize URL, обмен кода, проверка
+- [x] `OidcProvider` (общие discovery и JWKS) и `OidcCodeFlowClient`: authorize URL, обмен кода, проверка
       `id_token` с `nonce` — существующие тесты `test_oidc_verifier.py` зелёные; integration-тест: `id_token`
       с чужим `aud` или неверным `nonce` отклоняется
-- [ ] `BrowserLoginService` и `BrowserSessionService`, `AuthMethod.COOKIE`, cookie в `AuthService` —
+- [x] `BrowserLoginService` и `BrowserSessionService`, `AuthMethod.COOKIE`, cookie в `AuthService` —
       integration-тест: повторный callback с тем же `state` отклоняется; сессия старше 30 дней простоя или
       90 дней со входа не принимается; отключённый пользователь — `PermissionDeniedError`
-- [ ] `WebSettings`, провайдеры dishka, роутер `/api/v1/auth/*`, cookie-схема и CSRF в `fastapi/auth.py` —
+- [x] `WebSettings`, провайдеры dishka, роутер `/api/v1/auth/*`, cookie-схема и CSRF в `fastapi/auth.py` —
       e2e: юзер A с cookie не видит и не меняет данные юзера B; `POST` с cookie без `Origin` или с чужим — 403,
       с правильным — проходит; Bearer важнее cookie; `/mcp` с одной cookie — 401; `WEB__ORIGIN` пуст — `/auth/*` 404
 - [ ] Rauthy локально: клиент `atomic-tasks-web` (confidential, PKCE S256, redirect URI

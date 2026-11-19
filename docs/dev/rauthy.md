@@ -140,3 +140,36 @@ email не в allowlist или не подтверждён.
 Если `/mcp` отвечает 401 «Токен недействителен» — декодируйте токен (см. п. 6): в `aud` должен быть
 `http://localhost:8000/mcp`. Если его нет, Rauthy не принял `resource` — смотрите `docker compose logs rauthy`
 (`invalid_target`).
+
+## 8. Вход через браузер (спека 0008)
+
+Бэкенд сам проходит вход в Rauthy (authorization code + PKCE) и ставит httpOnly-cookie `__Host-at_session`
+(ADR 0013). Токены Rauthy в браузер не попадают.
+
+1. Админка Rauthy → Clients → добавить клиента:
+   - Client ID: `atomic-tasks-web`, тип **confidential** (с секретом) — код меняет бэкенд;
+   - Redirect URI (оба): `http://localhost:8000/api/v1/auth/callback` (без сайта) и
+     `http://localhost:5173/api/v1/auth/callback` (сайт на Vite проксирует `/api` в бэкенд);
+   - Flows: `authorization_code`, PKCE `S256`; Scopes: `openid email profile`;
+   - Allowed origins не нужны: браузер к token endpoint не ходит.
+   Скопируйте секрет клиента.
+2. В `.env`: `WEB__ORIGIN=http://localhost:8000` (или `http://localhost:5173`, если работаете через сайт),
+   `WEB__CLIENT_SECRET=<секрет>`. Redirect URI бэкенд строит сам: `<WEB__ORIGIN>/api/v1/auth/callback`.
+3. `docker compose up -d --build api`, открыть в **Chrome или Firefox** (Safari не принимает
+   `Secure`-cookie на `http://localhost`) http://localhost:8000/api/v1/auth/login → вход через Google →
+   редирект на `http://localhost:8000/` (там 404 — сайта нет, это нормально).
+4. Проверить:
+   - DevTools → Application → Cookies: `__Host-at_session`, HttpOnly, Secure, SameSite=Lax;
+   - http://localhost:8000/api/v1/me — JSON пользователя;
+   - выпуск PAT с cookie — из консоли DevTools на той же странице (браузер сам добавит `Origin`):
+
+     ```js
+     await (await fetch("/api/v1/tokens", {method: "POST", headers: {"Content-Type": "application/json"},
+       body: JSON.stringify({name: "cookie-test"})})).json()
+     ```
+
+   - выход: `await fetch("/api/v1/auth/logout", {method: "POST"})` → `204`, затем `/api/v1/me` → `401`.
+
+`/?login_error=…` вместо входа: `access_denied` — email не в `AUTH__ALLOWED_EMAILS` или пользователь отключён;
+`expired` — вход дольше 10 минут или начат на другом хосте/порту, чем `WEB__ORIGIN`; `failed` — неверный
+секрет клиента, redirect URI не заведён в Rauthy или id_token не прошёл проверку (`docker compose logs rauthy`).
