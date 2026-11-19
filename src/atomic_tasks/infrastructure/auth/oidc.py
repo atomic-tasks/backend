@@ -5,7 +5,7 @@ import json
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 import jwt
 from jwt import PyJWKClient
@@ -66,23 +66,92 @@ def _is_trusted_client(azp: object, trusted: tuple[str, ...]) -> bool:
     )
 
 
-class OidcTokenVerifier:
-    def __init__(self, config: OidcConfig) -> None:
-        self._config = config
+class OidcProvider:
+    """Discovery, JWKS и HTTP-запросы к IdP. Один на приложение: кеш общий для проверки и входа."""
+
+    def __init__(self, issuer: str, internal_url: str | None = None) -> None:
+        self.issuer = issuer
+        self._internal_url = internal_url
+        self._discovery: dict[str, Any] | None = None
         self._jwks: PyJWKClient | None = None
-        self._userinfo_url: str | None = None
         self._lock = asyncio.Lock()
+
+    async def discovery(self) -> dict[str, Any]:
+        async with self._lock:
+            if self._discovery is None:
+                self._discovery = await asyncio.to_thread(
+                    self.get_json,
+                    f"{self.issuer.rstrip('/')}/.well-known/openid-configuration",
+                    None,
+                )
+            return self._discovery
+
+    async def jwks(self) -> PyJWKClient:
+        discovery = await self.discovery()
+        if self._jwks is None:
+            self._jwks = PyJWKClient(
+                self.internal(discovery["jwks_uri"]),
+                cache_keys=True,
+                timeout=HTTP_TIMEOUT_SECONDS,
+            )
+        return self._jwks
+
+    async def signing_key(self, raw: str) -> Any:
+        jwks = await self.jwks()
+        return (await asyncio.to_thread(jwks.get_signing_key_from_jwt, raw)).key
+
+    def get_json(self, url: str, bearer: str | None) -> dict[str, Any]:
+        request = urllib.request.Request(self.internal(url))  # noqa: S310 — URL из настроек
+        if bearer:
+            request.add_header("Authorization", f"Bearer {bearer}")
+        return self._send(request)
+
+    def post_form(self, url: str, form: dict[str, str], *, basic_auth: str) -> dict[str, Any]:
+        request = urllib.request.Request(  # noqa: S310 — URL из discovery нашего issuer
+            self.internal(url),
+            data=urlencode(form).encode(),
+            headers={
+                "Authorization": f"Basic {basic_auth}",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+            },
+            method="POST",
+        )
+        return self._send(request)
+
+    @staticmethod
+    def _send(request: urllib.request.Request) -> dict[str, Any]:
+        # Тело ответа об ошибке не логируем и не пробрасываем: в нём бывают детали запроса.
+        try:
+            with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:  # noqa: S310
+                data: dict[str, Any] = json.load(response)
+        except (OSError, ValueError) as exc:
+            raise AuthenticationError("IdP недоступен, попробуйте позже.") from exc
+        return data
+
+    def internal(self, url: str) -> str:
+        public, internal = self.issuer, self._internal_url
+        if not internal:
+            return url
+        public_root = public.split("/", 3)[:3]
+        internal_root = internal.rstrip("/")
+        return url.replace("/".join(public_root), internal_root, 1)
+
+
+class OidcTokenVerifier:
+    def __init__(self, config: OidcConfig, provider: OidcProvider | None = None) -> None:
+        self._config = config
+        self._provider = provider or OidcProvider(config.issuer, config.internal_url)
 
     async def verify(self, raw: str, *, target: AuthTarget) -> VerifiedClaims:
         audience = self._audience_for(target)
         if not audience:
             raise AuthenticationError("Вход через IdP не настроен.")
-        jwks = await self._jwks_client()
         try:
-            key = await asyncio.to_thread(jwks.get_signing_key_from_jwt, raw)
+            key = await self._provider.signing_key(raw)
             payload: dict[str, Any] = jwt.decode(
                 raw,
-                key.key,
+                key,
                 algorithms=ALLOWED_ALGORITHMS,
                 audience=audience,
                 issuer=self._config.issuer,
@@ -96,15 +165,8 @@ class OidcTokenVerifier:
             # Rauthy выдаёт таким код без экрана согласия, поэтому доверяем лишь известным хостам.
             self._require_trusted_client(payload.get("azp"))
 
-        if "email" not in payload and self._userinfo_url:
-            payload = {**await asyncio.to_thread(self._fetch_userinfo, raw), **payload}
-        return VerifiedClaims(
-            issuer=payload["iss"],
-            subject=str(payload["sub"]),
-            email=payload.get("email"),
-            email_verified=bool(payload.get("email_verified", False)),
-            name=payload.get("name") or payload.get("preferred_username"),
-        )
+        payload = await with_userinfo(self._provider, payload, access_token=raw)
+        return claims_from(payload)
 
     def _audience_for(self, target: AuthTarget) -> list[str]:
         """Наши client id годятся везде; ресурс MCP — только для /mcp (ADR 0012)."""
@@ -117,41 +179,25 @@ class OidcTokenVerifier:
         if not _is_trusted_client(azp, self._config.mcp_trusted_clients):
             raise AuthenticationError("Этот клиент не может подключаться к MCP.")
 
-    async def _jwks_client(self) -> PyJWKClient:
-        async with self._lock:
-            if self._jwks is None:
-                discovery = await asyncio.to_thread(
-                    self._get_json,
-                    f"{self._config.issuer.rstrip('/')}/.well-known/openid-configuration",
-                    None,
-                )
-                self._userinfo_url = discovery.get("userinfo_endpoint")
-                self._jwks = PyJWKClient(
-                    self._internal(discovery["jwks_uri"]),
-                    cache_keys=True,
-                    timeout=HTTP_TIMEOUT_SECONDS,
-                )
-            return self._jwks
 
-    def _fetch_userinfo(self, raw: str) -> dict[str, Any]:
-        assert self._userinfo_url is not None  # noqa: S101
-        return self._get_json(self._userinfo_url, raw)
+async def with_userinfo(
+    provider: OidcProvider, payload: dict[str, Any], *, access_token: str
+) -> dict[str, Any]:
+    """Email, если его нет в токене, — из userinfo. Claims токена важнее."""
+    if "email" in payload:
+        return payload
+    userinfo_url = (await provider.discovery()).get("userinfo_endpoint")
+    if not userinfo_url:
+        return payload
+    userinfo = await asyncio.to_thread(provider.get_json, userinfo_url, access_token)
+    return {**userinfo, **payload}
 
-    def _get_json(self, url: str, bearer: str | None) -> dict[str, Any]:
-        request = urllib.request.Request(self._internal(url))  # noqa: S310 — URL из настроек
-        if bearer:
-            request.add_header("Authorization", f"Bearer {bearer}")
-        try:
-            with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:  # noqa: S310
-                data: dict[str, Any] = json.load(response)
-        except OSError as exc:
-            raise AuthenticationError("IdP недоступен, попробуйте позже.") from exc
-        return data
 
-    def _internal(self, url: str) -> str:
-        public, internal = self._config.issuer, self._config.internal_url
-        if not internal:
-            return url
-        public_root = public.split("/", 3)[:3]
-        internal_root = internal.rstrip("/")
-        return url.replace("/".join(public_root), internal_root, 1)
+def claims_from(payload: dict[str, Any]) -> VerifiedClaims:
+    return VerifiedClaims(
+        issuer=payload["iss"],
+        subject=str(payload["sub"]),
+        email=payload.get("email"),
+        email_verified=bool(payload.get("email_verified", False)),
+        name=payload.get("name") or payload.get("preferred_username"),
+    )
