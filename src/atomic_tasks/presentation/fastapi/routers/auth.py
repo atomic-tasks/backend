@@ -1,6 +1,7 @@
 """Вход через браузер (спека 0008): редиректы и cookie. Сценарий — в BrowserLoginService."""
 
 from typing import Annotated
+from urllib.parse import urlsplit
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Depends, Request, Response, status
@@ -80,9 +81,9 @@ def make_router(web_origin: str | None) -> APIRouter:
                 idp_error=error,
             )
         except LoginFailedError as exc:
-            response = _redirect(f"{origin}/?login_error={exc.code}")
+            response = _redirect(origin, f"/?login_error={exc.code}")
         else:
-            response = _redirect(f"{origin}{result.return_to}")
+            response = _redirect(origin, result.return_to)
             # Срок держит сервер; Max-Age — чтобы cookie пережила перезапуск браузера
             set_cookie(
                 response,
@@ -113,7 +114,13 @@ def make_router(web_origin: str | None) -> APIRouter:
     return router
 
 
-def _redirect(url: str) -> RedirectResponse:
+def _redirect(origin: str, path: str) -> RedirectResponse:
+    """Редирект только на сайт. `path` уже проверен в домене (safe_return_to); здесь — вторая
+    линия: итоговый URL обязан указывать на тот же scheme и host, что и origin сайта."""
+    url = f"{origin}{path}"
+    target, site = urlsplit(url), urlsplit(origin)
+    if (target.scheme, target.netloc) != (site.scheme, site.netloc):
+        url = f"{origin}/"
     response = RedirectResponse(url, status_code=status.HTTP_302_FOUND)
     response.headers["Cache-Control"] = "no-store"
     return response
