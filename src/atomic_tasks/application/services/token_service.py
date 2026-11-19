@@ -13,18 +13,18 @@ from atomic_tasks.domain.entities.api_token import (
     ApiToken,
     TokenScope,
     generate_token,
-    hash_token,
     looks_like_api_token,
     validate_token_params,
 )
 from atomic_tasks.domain.exceptions import TokenLimitExceededError
+from atomic_tasks.domain.secrets import hash_secret
 
 
 class TokenService:
     """Personal access tokens.
 
     Выпуск, список и отзыв доступны из CLI администратора и из сессии IdP (REST проверяет
-    Identity.require_session): утёкший PAT не выпустит себе новый.
+    Identity.require_interactive): утёкший PAT не выпустит себе новый.
     """
 
     def __init__(
@@ -84,7 +84,7 @@ class TokenService:
     async def authenticate(self, raw: str) -> Identity:
         if not looks_like_api_token(raw):
             raise AuthenticationError
-        token = await self._tokens.get_by_hash(hash_token(raw))
+        token = await self._tokens.get_by_hash(hash_secret(raw))
         now = self._clock.now()
         if token is None or not token.is_active(now):
             raise AuthenticationError("Токен недействителен, отозван или истёк.")

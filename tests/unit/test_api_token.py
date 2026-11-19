@@ -8,11 +8,11 @@ from atomic_tasks.domain.entities.api_token import (
     ApiToken,
     TokenScope,
     generate_token,
-    hash_token,
     looks_like_api_token,
     validate_token_params,
 )
 from atomic_tasks.domain.exceptions import InsufficientScopeError, InvalidTokenParamsError
+from atomic_tasks.domain.secrets import hash_secret
 
 NOW = datetime(2026, 11, 8, 12, 0, tzinfo=UTC)
 
@@ -64,7 +64,7 @@ def test_generated_token_format_and_hash() -> None:
     assert marker == "at"
     assert prefix == generated.prefix
     assert looks_like_api_token(generated.raw)
-    assert generated.token_hash == hash_token(generated.raw)
+    assert generated.token_hash == hash_secret(generated.raw)
     assert generated.raw not in generated.token_hash
     assert generate_token().raw != generated.raw
 

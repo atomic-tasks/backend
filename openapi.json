@@ -30,6 +30,139 @@
         }
       }
     },
+    "/api/v1/auth/login": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login",
+        "description": "Начать вход: браузер уходит в IdP и возвращается на `return_to` (путь на сайте).",
+        "operationId": "login",
+        "parameters": [
+          {
+            "name": "return_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Return To"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Редирект в IdP; ставит cookie входа."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/callback": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Callback",
+        "description": "Возврат из IdP. Вызывается браузером, не клиентом API.",
+        "operationId": "callback",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "На `return_to` с cookie сессии или на `/?login_error=access_denied|expired|failed`."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout",
+        "description": "Выйти: удалить сессию и cookie. Без сессии — тоже 204.",
+        "operationId": "logout",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
     "/api/v1/me": {
       "get": {
         "tags": [
@@ -55,6 +188,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ]
       }
@@ -88,6 +224,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ]
       },
@@ -135,6 +274,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ]
       }
@@ -152,6 +294,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -209,6 +354,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ]
       }
@@ -226,6 +374,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -275,6 +426,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -335,6 +489,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -390,6 +547,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -452,6 +612,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -570,6 +733,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ]
       }
@@ -587,6 +753,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -648,6 +817,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -709,6 +881,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -758,6 +933,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -817,6 +995,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -893,6 +1074,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ]
       }
@@ -910,6 +1094,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -971,6 +1158,9 @@
           },
           {
             "HTTPBearer": []
+          },
+          {
+            "APIKeyCookie": []
           }
         ],
         "parameters": [
@@ -1934,6 +2124,12 @@
         "type": "http",
         "description": "Personal access token `at_...` (выпускается в /api/v1/tokens после входа через IdP или командой `python -m atomic_tasks tokens create`).",
         "scheme": "bearer"
+      },
+      "APIKeyCookie": {
+        "type": "apiKey",
+        "description": "Сессия браузера: ставится после входа через `/api/v1/auth/login`, только на хосте сайта. Небезопасные методы требуют заголовок `Origin` сайта.",
+        "in": "cookie",
+        "name": "__Host-at_session"
       }
     }
   }

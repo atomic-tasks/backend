@@ -1,4 +1,3 @@
-import hashlib
 import secrets
 import string
 from dataclasses import dataclass
@@ -7,6 +6,7 @@ from enum import StrEnum
 from uuid import UUID
 
 from atomic_tasks.domain.exceptions import InsufficientScopeError, InvalidTokenParamsError
+from atomic_tasks.domain.secrets import hash_secret
 
 TOKEN_MARKER = "at"  # noqa: S105 — маркер формата, не секрет
 PREFIX_LENGTH = 8
@@ -74,11 +74,7 @@ class GeneratedToken:
 def generate_token() -> GeneratedToken:
     prefix = "".join(secrets.choice(_PREFIX_ALPHABET) for _ in range(PREFIX_LENGTH))
     raw = f"{TOKEN_MARKER}_{prefix}_{secrets.token_urlsafe(SECRET_BYTES)}"
-    return GeneratedToken(raw=raw, prefix=prefix, token_hash=hash_token(raw))
-
-
-def hash_token(raw: str) -> str:
-    return hashlib.sha256(raw.encode()).hexdigest()
+    return GeneratedToken(raw=raw, prefix=prefix, token_hash=hash_secret(raw))
 
 
 def looks_like_api_token(raw: str) -> bool:

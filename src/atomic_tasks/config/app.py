@@ -47,6 +47,7 @@ def create_app(settings: Settings | None = None, *overrides: Provider) -> FastAP
         lifespan=lifespan,
         oidc_issuer=settings.auth.issuer,
         swagger_client_id=settings.auth.swagger_client_id,
+        web_origin=settings.web.origin,
     )
     setup_dishka(container, app)
     # MCP монтируется последним: сначала матчатся маршруты FastAPI, остальное (/mcp) уходит в MCP

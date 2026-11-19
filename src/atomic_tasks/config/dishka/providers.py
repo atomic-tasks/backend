@@ -10,16 +10,25 @@ from sqlalchemy.ext.asyncio import (
 
 from atomic_tasks.application.ports.access import AccessPolicy
 from atomic_tasks.application.ports.api_tokens import ApiTokenRepository
+from atomic_tasks.application.ports.browser_sessions import (
+    BrowserSessionRepository,
+    LoginAttemptRepository,
+)
 from atomic_tasks.application.ports.clock import Clock
 from atomic_tasks.application.ports.folders import FolderRepository
 from atomic_tasks.application.ports.identities import UserIdentityRepository
-from atomic_tasks.application.ports.oidc import TokenVerifier
+from atomic_tasks.application.ports.oidc import OidcClient, TokenVerifier
 from atomic_tasks.application.ports.tasks import TaskRepository
 from atomic_tasks.application.ports.transaction import TransactionManager
 from atomic_tasks.application.ports.tree import FolderTreeReader
 from atomic_tasks.application.ports.users import UserRepository
 from atomic_tasks.application.registration import RegistrationPolicy
 from atomic_tasks.application.services.auth_service import AuthService
+from atomic_tasks.application.services.browser_login_service import (
+    BrowserLoginService,
+    WebLoginConfig,
+)
+from atomic_tasks.application.services.browser_session_service import BrowserSessionService
 from atomic_tasks.application.services.bulk_service import BulkService
 from atomic_tasks.application.services.folder_service import FolderService
 from atomic_tasks.application.services.identity_service import IdentityService
@@ -27,12 +36,17 @@ from atomic_tasks.application.services.task_service import TaskService
 from atomic_tasks.application.services.token_service import TokenService
 from atomic_tasks.application.services.tree_service import TreeService
 from atomic_tasks.application.services.user_service import UserService
-from atomic_tasks.config.settings import AuthSettings, PostgresSettings, Settings
+from atomic_tasks.config.settings import AuthSettings, PostgresSettings, Settings, WebSettings
 from atomic_tasks.infrastructure.auth.access_policy import OwnerAccessPolicy
-from atomic_tasks.infrastructure.auth.oidc import OidcConfig, OidcTokenVerifier
+from atomic_tasks.infrastructure.auth.oidc import OidcConfig, OidcProvider, OidcTokenVerifier
+from atomic_tasks.infrastructure.auth.oidc_client import OidcCodeFlowClient
 from atomic_tasks.infrastructure.clock import SystemClock
 from atomic_tasks.infrastructure.postgres.readers.tree import SqlFolderTreeReader
 from atomic_tasks.infrastructure.postgres.repositories.api_tokens import SqlApiTokenRepository
+from atomic_tasks.infrastructure.postgres.repositories.browser_sessions import (
+    SqlBrowserSessionRepository,
+    SqlLoginAttemptRepository,
+)
 from atomic_tasks.infrastructure.postgres.repositories.folders import SqlFolderRepository
 from atomic_tasks.infrastructure.postgres.repositories.identities import SqlUserIdentityRepository
 from atomic_tasks.infrastructure.postgres.repositories.tasks import SqlTaskRepository
@@ -52,6 +66,10 @@ class SettingsProvider(Provider):
     @provide
     def auth_settings(self, settings: Settings) -> AuthSettings:
         return settings.auth
+
+    @provide
+    def web_settings(self, settings: Settings) -> WebSettings:
+        return settings.web
 
 
 class PostgresProvider(Provider):
@@ -75,6 +93,16 @@ class PostgresProvider(Provider):
 
     users = provide(SqlUserRepository, scope=Scope.REQUEST, provides=UserRepository)
     api_tokens = provide(SqlApiTokenRepository, scope=Scope.REQUEST, provides=ApiTokenRepository)
+    browser_sessions = provide(
+        SqlBrowserSessionRepository,
+        scope=Scope.REQUEST,
+        provides=BrowserSessionRepository,
+    )
+    login_attempts = provide(
+        SqlLoginAttemptRepository,
+        scope=Scope.REQUEST,
+        provides=LoginAttemptRepository,
+    )
     folders = provide(SqlFolderRepository, scope=Scope.REQUEST, provides=FolderRepository)
     tasks = provide(SqlTaskRepository, scope=Scope.REQUEST, provides=TaskRepository)
     tree_reader = provide(SqlFolderTreeReader, scope=Scope.REQUEST, provides=FolderTreeReader)
@@ -98,6 +126,8 @@ class ServicesProvider(Provider):
     identity_service = provide(IdentityService)
     token_service = provide(TokenService)
     auth_service = provide(AuthService)
+    browser_session_service = provide(BrowserSessionService)
+    browser_login_service = provide(BrowserLoginService)
     access_policy = provide(OwnerAccessPolicy, scope=Scope.APP, provides=AccessPolicy)
     folder_service = provide(FolderService)
     task_service = provide(TaskService)
@@ -109,7 +139,11 @@ class AuthProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def token_verifier(self, settings: Settings) -> TokenVerifier:
+    def oidc_provider(self, settings: AuthSettings) -> OidcProvider:
+        return OidcProvider(settings.issuer, settings.internal_url)
+
+    @provide
+    def token_verifier(self, settings: Settings, provider: OidcProvider) -> TokenVerifier:
         return OidcTokenVerifier(
             OidcConfig(
                 issuer=settings.auth.issuer,
@@ -121,7 +155,20 @@ class AuthProvider(Provider):
                     *settings.mcp.extra_trusted_clients,
                 ),
             ),
+            provider,
         )
+
+    @provide
+    def oidc_client(self, settings: WebSettings, provider: OidcProvider) -> OidcClient:
+        return OidcCodeFlowClient(
+            provider,
+            client_id=settings.client_id,
+            client_secret=settings.client_secret.get_secret_value(),
+        )
+
+    @provide
+    def web_login_config(self, settings: WebSettings) -> WebLoginConfig:
+        return WebLoginConfig(redirect_uri=settings.redirect_uri)
 
     @provide
     def registration_policy(self, settings: AuthSettings) -> RegistrationPolicy:

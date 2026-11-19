@@ -22,3 +22,20 @@ class TokenVerifier(Protocol):
         Допустимые `aud` зависят от `target`: токен, выданный для ресурса MCP, не годится для REST.
         """
         ...
+
+
+class OidcClient(Protocol):
+    """Вход через браузер у IdP: authorization code + PKCE, бэкенд — конфиденциальный клиент."""
+
+    async def authorization_url(
+        self, *, state: str, code_challenge: str, nonce: str, redirect_uri: str
+    ) -> str: ...
+
+    async def exchange_code(
+        self, *, code: str, code_verifier: str, nonce: str, redirect_uri: str
+    ) -> VerifiedClaims:
+        """Меняет code на токены и проверяет id_token (подпись, iss, aud, exp, nonce).
+
+        Токены IdP наружу не отдаются. Любая ошибка — AuthenticationError.
+        """
+        ...

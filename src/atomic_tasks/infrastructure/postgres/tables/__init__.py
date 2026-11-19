@@ -5,13 +5,19 @@
 
 from atomic_tasks.infrastructure.postgres.tables.api_tokens import api_tokens
 from atomic_tasks.infrastructure.postgres.tables.base import mapper_registry, metadata
+from atomic_tasks.infrastructure.postgres.tables.browser_sessions import (
+    browser_sessions,
+    login_attempts,
+)
 from atomic_tasks.infrastructure.postgres.tables.folders import folders
 from atomic_tasks.infrastructure.postgres.tables.tasks import tasks
 from atomic_tasks.infrastructure.postgres.tables.users import user_identities, users
 
 __all__ = [
     "api_tokens",
+    "browser_sessions",
     "folders",
+    "login_attempts",
     "mapper_registry",
     "metadata",
     "tasks",

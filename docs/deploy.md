@@ -75,6 +75,11 @@ Change visibility), иначе pull упадёт с `unauthorized`.
    В Google — перевести consent screen из тестового режима или добавить себя в Test users.
 4. **Клиент Swagger** — как в `docs/dev/rauthy.md`, раздел 6: `atomic-tasks-swagger`, public, PKCE S256,
    redirect `https://<API_HOST>/docs/oauth2-redirect`, allowed origin `https://<API_HOST>`.
+5. **Клиент сайта** (вход через браузер, спека 0008) — как в `docs/dev/rauthy.md`, раздел 8:
+   `atomic-tasks-web`, **confidential**, PKCE S256, redirect `https://<WEB_HOST>/api/v1/auth/callback`,
+   allowed origin не нужен (код меняет бэкенд). Секрет клиента — в `.env` как `WEB__CLIENT_SECRET`
+   **до** выкатки версии со спекой 0008: без него `docker compose` откажется запускать стек
+   (deploy остановится до миграций, API останется прежним).
 
 ## 5. Проверка после первой установки
 
@@ -110,6 +115,12 @@ Change visibility), иначе pull упадёт с `unauthorized`.
   → `413`.
 - Хост сайта: `curl -s -o /dev/null -w '%{http_code}\n' https://<WEB_HOST>/api/v1/me` → `401` (ответ бэкенда);
   `https://<WEB_HOST>/` → `404` от Traefik, пока сайт не выкачен.
+- Вход через браузер: открыть `https://<WEB_HOST>/api/v1/auth/login` → вход через Google → редирект на
+  `https://<WEB_HOST>/` (до выкатки сайта — `404` от Traefik, это нормально). В DevTools → Application →
+  Cookies у `<WEB_HOST>` есть `__Host-at_session` с HttpOnly и Secure; `https://<WEB_HOST>/api/v1/me`
+  в той же вкладке отвечает JSON пользователя. `?login_error=access_denied` — email не в allowlist.
+  `?login_error=expired` при входе через `<API_HOST>` ожидаем: cookie входа ставится на хост, где начался
+  вход, а callback приходит на `<WEB_HOST>` — входить нужно только через хост сайта.
 - Память: `docker stats --no-stream` — записать в «Открытые вопросы» спеки 0006.
 
 ## 6. Выкатка из GitHub Actions

@@ -1,6 +1,6 @@
 from functools import cached_property
 
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -59,6 +59,35 @@ class AuthSettings(BaseModel):
     swagger_client_id: str = ""
 
 
+class WebSettings(BaseModel):
+    """Вход через браузер и cookie-сессии (спека 0008)."""
+
+    # Origin сайта, через который браузер ходит в /api/ (https://<WEB_HOST>, локально
+    # http://localhost:5173). Пусто — вход через браузер выключен: /api/v1/auth/* → 404, cookie
+    # не принимается. С ним сравнивается Origin небезопасных запросов с cookie (CSRF).
+    origin: str | None = None
+    # Конфиденциальный клиент в IdP (PKCE S256), redirect URI — <origin>/api/v1/auth/callback.
+    client_id: str = "atomic-tasks-web"
+    client_secret: SecretStr = SecretStr("")
+
+    @field_validator("origin")
+    @classmethod
+    def _strip_slash(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        return value.rstrip("/") or None
+
+    @model_validator(mode="after")
+    def _secret_required(self) -> WebSettings:
+        if self.origin and not self.client_secret.get_secret_value():
+            raise ValueError("WEB__CLIENT_SECRET обязателен, если задан WEB__ORIGIN")
+        return self
+
+    @property
+    def redirect_uri(self) -> str:
+        return f"{self.origin}/api/v1/auth/callback"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -70,6 +99,7 @@ class Settings(BaseSettings):
     postgres: PostgresSettings = PostgresSettings()
     mcp: McpSettings = McpSettings()
     auth: AuthSettings = AuthSettings()
+    web: WebSettings = WebSettings()
 
     @cached_property
     def version(self) -> str:
