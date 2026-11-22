@@ -7,7 +7,7 @@
       с тестовым `.env` проходит, оба правила в выводе верные; без `WEB_HOST` — ошибка
 - [x] Runbook переезда в `docs/deploy.md` (DNS, `.env`, Rauthy, GitHub, проверка, коннекторы, откат),
       хосты в `docs/architecture.md` — каждый шаг проверяем командой или ссылкой на экран админки
-- [ ] PR 1: спека, ADR 0013, roadmap, plan.md, tasks.md, compose и runbook; после мёржа — переезд по runbook,
+- [x] PR 1: спека, ADR 0013, roadmap, plan.md, tasks.md, compose и runbook; после мёржа — переезд по runbook,
       тег и выкатка — на `API_HOST` отвечают `/health`, `/docs` (вход в Swagger работает), `/openapi.json`,
       `/.well-known/oauth-protected-resource/mcp`; коннектор Claude на новом `/mcp` видит дерево;
       `https://WEB_HOST/api/v1/me` → 401, `https://WEB_HOST/` → 404 от Traefik; релизный job зелёный
@@ -33,7 +33,7 @@
       `docs/dev/rauthy.md` — сквозной вход в браузере с `WEB__ORIGIN=http://localhost:8000`
       на `localhost:8000/api/v1/auth/login`: cookie
       httpOnly, `/api/v1/me` отвечает, создание PAT работает, logout → `/me` 401
-- [ ] Прод-конфиг: `WEB__*` в `deploy/compose.yaml` и `deploy/.env.example`, заведение клиента в
+- [x] Прод-конфиг: `WEB__*` в `deploy/compose.yaml` и `deploy/.env.example`, заведение клиента в
       `docs/deploy.md`; `docs/architecture.md` — аутентификация через cookie; openapi.json содержит три
       новых `operation_id` и cookie-схему; ruff, mypy, lint-imports, pytest чистые; `/security-review` пройден
 - [ ] После выкатки: вход с сайта на проде (когда веб выкачен) или напрямую через
